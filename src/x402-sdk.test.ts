@@ -10,7 +10,7 @@ import { toClientEvmSigner } from "@x402/evm";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { deriveAllKeys, generateWalletMnemonic } from "./wallet.js";
+import { deriveAllKeys } from "./wallet.js";
 
 // Deterministic test mnemonic (DO NOT use in production)
 const TEST_MNEMONIC =

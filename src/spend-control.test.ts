@@ -205,7 +205,7 @@ describe("SpendControl", () => {
   describe("persistence", () => {
     it("persists limits and history across instances via shared storage", () => {
       const storage = new InMemorySpendControlStorage();
-      let clock = Date.now();
+      const clock = Date.now();
 
       const c1 = new SpendControl({ storage, now: () => clock });
       c1.setLimit("hourly", 5.00);

@@ -5,9 +5,7 @@
  * Works independently of OpenClaw - direct x402 payment to BlockRun API.
  */
 
-import { homedir, platform, arch, freemem, totalmem } from "node:os";
-import { join } from "node:path";
-import { stat, readdir } from "node:fs/promises";
+import { platform, arch, freemem, totalmem } from "node:os";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
