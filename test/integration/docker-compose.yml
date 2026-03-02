@@ -1,5 +1,6 @@
 services:
   integration:
+    image: clawrouter-integration:latest
     build:
       context: ../..
       dockerfile: test/integration/Dockerfile
