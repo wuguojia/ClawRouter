@@ -15,6 +15,7 @@
 
 import { startProxy, getProxyPort } from "./proxy.js";
 import { resolveOrGenerateWalletKey, resolvePaymentChain } from "./auth.js";
+import { getSolanaAddress } from "./wallet.js";
 import { generateReport } from "./report.js";
 import { VERSION } from "./version.js";
 import { runDoctor } from "./doctor.js";
@@ -216,6 +217,16 @@ async function main(): Promise<void> {
     console.log(`[ClawRouter] Using saved wallet: ${wallet.address}`);
   } else {
     console.log(`[ClawRouter] Using wallet from BLOCKRUN_WALLET_KEY: ${wallet.address}`);
+  }
+
+  // Show Solana address if available
+  if (wallet.solanaPrivateKeyBytes) {
+    try {
+      const solAddr = await getSolanaAddress(wallet.solanaPrivateKeyBytes);
+      console.log(`[ClawRouter] Solana address: ${solAddr}`);
+    } catch {
+      // Non-fatal
+    }
   }
 
   // Start the proxy

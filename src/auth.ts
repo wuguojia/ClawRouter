@@ -35,6 +35,7 @@ import {
   deriveSolanaKeyBytes,
   deriveSolanaKeyBytesLegacy,
   deriveAllKeys,
+  getSolanaAddress,
 } from "./wallet.js";
 
 const WALLET_DIR = join(homedir(), ".openclaw", "blockrun");
@@ -168,14 +169,25 @@ async function generateAndSaveWallet(): Promise<{
     );
   }
 
+  // Derive Solana address for display
+  let solanaAddress: string | undefined;
+  try {
+    solanaAddress = await getSolanaAddress(derived.solanaPrivateKeyBytes);
+  } catch {
+    // Non-fatal — Solana address display is best-effort
+  }
+
   // Print prominent backup reminder after generating a new wallet
   console.log(`[ClawRouter]`);
   console.log(`[ClawRouter] ════════════════════════════════════════════════`);
   console.log(`[ClawRouter]   NEW WALLET GENERATED — BACK UP YOUR KEY NOW`);
   console.log(`[ClawRouter] ════════════════════════════════════════════════`);
-  console.log(`[ClawRouter]   EVM Address : ${derived.evmAddress}`);
-  console.log(`[ClawRouter]   Key file    : ${WALLET_FILE}`);
-  console.log(`[ClawRouter]   Mnemonic    : ${MNEMONIC_FILE}`);
+  console.log(`[ClawRouter]   EVM Address    : ${derived.evmAddress}`);
+  if (solanaAddress) {
+    console.log(`[ClawRouter]   Solana Address : ${solanaAddress}`);
+  }
+  console.log(`[ClawRouter]   Key file       : ${WALLET_FILE}`);
+  console.log(`[ClawRouter]   Mnemonic       : ${MNEMONIC_FILE}`);
   console.log(`[ClawRouter]`);
   console.log(`[ClawRouter]   Both EVM (Base) and Solana wallets are ready.`);
   console.log(`[ClawRouter]   To back up, run in OpenClaw:`);

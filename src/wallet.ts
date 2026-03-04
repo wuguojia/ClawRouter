@@ -114,3 +114,13 @@ export function deriveAllKeys(mnemonic: string): DerivedKeys {
   const solanaPrivateKeyBytes = deriveSolanaKeyBytes(mnemonic);
   return { mnemonic, evmPrivateKey, evmAddress, solanaPrivateKeyBytes };
 }
+
+/**
+ * Get the Solana address from 32-byte private key bytes.
+ * Uses @solana/kit's createKeyPairSignerFromPrivateKeyBytes (dynamic import).
+ */
+export async function getSolanaAddress(privateKeyBytes: Uint8Array): Promise<string> {
+  const { createKeyPairSignerFromPrivateKeyBytes } = await import("@solana/kit");
+  const signer = await createKeyPairSignerFromPrivateKeyBytes(privateKeyBytes);
+  return signer.address;
+}
