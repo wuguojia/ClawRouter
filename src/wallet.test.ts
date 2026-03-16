@@ -1,6 +1,6 @@
 /**
  * Wallet derivation tests — BIP-39 mnemonic + BIP-44 key derivation.
- * Tests SLIP-10 Ed25519 (Phantom-compatible) and legacy secp256k1 derivation.
+ * Tests SLIP-10 Ed25519 (Phantom-compatible) derivation.
  */
 
 import { describe, it, expect } from "vitest";
@@ -9,7 +9,6 @@ import {
   isValidMnemonic,
   deriveEvmKey,
   deriveSolanaKeyBytes,
-  deriveSolanaKeyBytesLegacy,
   deriveAllKeys,
 } from "./wallet.js";
 
@@ -21,10 +20,6 @@ describe("wallet key derivation", () => {
   const EXPECTED_SLIP10_KEY_HEX =
     "7c139e1a603ca04f5f7cff194e1bb6f6d1b9098470ea90695ab628488a9f921b";
   const EXPECTED_SLIP10_ADDRESS = "3Cy3YNTFywCmxoxt8n7UH6hg6dLo5uACowX3CFceaSnx";
-
-  // Known legacy (secp256k1) derivation result — different from SLIP-10
-  const EXPECTED_LEGACY_KEY_HEX =
-    "39193f920d8cefc6f5ad9b5371d2331744d6b4a406764bbccbb1e9ac72f84b6f";
 
   describe("generateWalletMnemonic", () => {
     it("generates a valid 24-word mnemonic", () => {
@@ -102,44 +97,6 @@ describe("wallet key derivation", () => {
       const bytes = deriveSolanaKeyBytes(TEST_MNEMONIC);
       const signer = await createKeyPairSignerFromPrivateKeyBytes(bytes);
       expect(signer.address).toBe(EXPECTED_SLIP10_ADDRESS);
-    });
-  });
-
-  describe("deriveSolanaKeyBytesLegacy (secp256k1)", () => {
-    it("returns a 32-byte Uint8Array", () => {
-      const bytes = deriveSolanaKeyBytesLegacy(TEST_MNEMONIC);
-      expect(bytes).toBeInstanceOf(Uint8Array);
-      expect(bytes.length).toBe(32);
-    });
-
-    it("produces known legacy key for test mnemonic", () => {
-      const bytes = deriveSolanaKeyBytesLegacy(TEST_MNEMONIC);
-      expect(Buffer.from(bytes).toString("hex")).toBe(EXPECTED_LEGACY_KEY_HEX);
-    });
-
-    it("is deterministic", () => {
-      const a = deriveSolanaKeyBytesLegacy(TEST_MNEMONIC);
-      const b = deriveSolanaKeyBytesLegacy(TEST_MNEMONIC);
-      expect(Buffer.from(a).toString("hex")).toBe(Buffer.from(b).toString("hex"));
-    });
-  });
-
-  describe("SLIP-10 vs legacy derivation", () => {
-    it("produces different keys from same mnemonic", () => {
-      const slip10 = deriveSolanaKeyBytes(TEST_MNEMONIC);
-      const legacy = deriveSolanaKeyBytesLegacy(TEST_MNEMONIC);
-      expect(Buffer.from(slip10).toString("hex")).not.toBe(Buffer.from(legacy).toString("hex"));
-    });
-
-    it("produces different Solana addresses from same mnemonic", async () => {
-      const { createKeyPairSignerFromPrivateKeyBytes } = await import("@solana/kit");
-      const slip10Signer = await createKeyPairSignerFromPrivateKeyBytes(
-        deriveSolanaKeyBytes(TEST_MNEMONIC),
-      );
-      const legacySigner = await createKeyPairSignerFromPrivateKeyBytes(
-        deriveSolanaKeyBytesLegacy(TEST_MNEMONIC),
-      );
-      expect(slip10Signer.address).not.toBe(legacySigner.address);
     });
   });
 

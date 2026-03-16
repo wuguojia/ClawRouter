@@ -90,18 +90,6 @@ export function deriveSolanaKeyBytes(mnemonic: string): Uint8Array {
 }
 
 /**
- * Legacy Solana key derivation using secp256k1 BIP-32 (incorrect for Solana).
- * Kept for migration: sweeping funds from wallets derived with the old method.
- */
-export function deriveSolanaKeyBytesLegacy(mnemonic: string): Uint8Array {
-  const seed = mnemonicToSeedSync(mnemonic);
-  const hdKey = HDKey.fromMasterSeed(seed);
-  const derived = hdKey.derive("m/44'/501'/0'/0'");
-  if (!derived.privateKey) throw new Error("Failed to derive legacy Solana private key");
-  return new Uint8Array(derived.privateKey);
-}
-
-/**
  * Derive both EVM and Solana keys from a single mnemonic.
  */
 export function deriveAllKeys(mnemonic: string): DerivedKeys {

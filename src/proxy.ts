@@ -2917,21 +2917,14 @@ async function proxyRequest(
             hasTools,
           });
 
-          // SIMPLE queries with tools: don't force agentic tier for trivial date/time/lookup requests.
-          // If the content classifies as SIMPLE but tools are present, re-route without tools flag
-          // so the query stays on a cheap model instead of jumping to the agentic tier config.
+          // Keep agentic routing when tools are present, even for SIMPLE queries.
+          // Tool-using requests need models with reliable function-call support;
+          // demoting to non-agentic tiers causes fallback to models that refuse
+          // tool schemas (gemini-flash-lite, deepseek) or lack tool support entirely.
           if (hasTools && routingDecision.tier === "SIMPLE") {
-            const simpleRoutingDecision = route(prompt, systemPrompt, maxTokens, {
-              ...routerOpts,
-              routingProfile: routingProfile ?? undefined,
-              hasTools: false,
-            });
-            if (simpleRoutingDecision.tier === "SIMPLE") {
-              console.log(
-                `[ClawRouter] SIMPLE+tools: using non-agentic model ${simpleRoutingDecision.model} (tools present but query is trivial)`,
-              );
-              routingDecision = simpleRoutingDecision;
-            }
+            console.log(
+              `[ClawRouter] SIMPLE+tools: keeping agentic model ${routingDecision.model} (tools need reliable function-call support)`,
+            );
           }
 
           if (existingSession) {
@@ -3362,10 +3355,10 @@ async function proxyRequest(
       modelsToTry = modelId ? [modelId] : [];
     }
 
-    // Always ensure free model is the last-resort fallback.
-    // If all paid models fail (insufficient funds, rate limits, etc.),
-    // the user still gets a response instead of an error.
-    if (!modelsToTry.includes(FREE_MODEL)) {
+    // Ensure free model is the last-resort fallback for non-tool requests.
+    // Skip free fallback when tools are present — nvidia/gpt-oss-120b lacks
+    // tool calling support and would produce broken responses for agentic tasks.
+    if (!hasTools && !modelsToTry.includes(FREE_MODEL)) {
       modelsToTry.push(FREE_MODEL);
     }
 
