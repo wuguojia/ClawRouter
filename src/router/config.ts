@@ -1039,45 +1039,48 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   },
 
   // Auto (balanced) tier configs - current default smart routing
+  // Benchmark-tuned 2026-03-16: latency-ranked via blockrun.ai x402 end-to-end
   tiers: {
     SIMPLE: {
-      primary: "moonshot/kimi-k2.5", // $0.60/$3.00 - best quality/price for simple tasks
+      primary: "xai/grok-4-fast-non-reasoning", // 1,143ms, $0.20/$0.50 — fastest overall
       fallback: [
-        "google/gemini-2.5-flash", // 60% retention (best), fast growth (+800%)
-        "google/gemini-2.5-flash-lite", // 1M context, ultra cheap ($0.10/$0.40)
-        "deepseek/deepseek-chat", // 41% retention
-        "nvidia/gpt-oss-120b", // FREE fallback
+        "xai/grok-3-mini", // 1,202ms, $0.30/$0.50
+        "google/gemini-2.5-flash", // 1,238ms, 60% retention (best)
+        "google/gemini-2.5-flash-lite", // 1,353ms, 1M context, ultra cheap ($0.10/$0.40)
+        "deepseek/deepseek-chat", // 1,431ms, 41% retention
+        "nvidia/gpt-oss-120b", // 1,252ms, FREE fallback
       ],
     },
     MEDIUM: {
-      primary: "moonshot/kimi-k2.5", // $0.50/$2.40 - strong tool use, proper function call format
+      primary: "xai/grok-4-1-fast-non-reasoning", // 1,244ms, $0.20/$0.50 — fast + tool calling
       fallback: [
-        "deepseek/deepseek-chat", // 41% retention
-        "google/gemini-2.5-flash", // 60% retention, cheap fast model
-        "google/gemini-2.5-flash-lite", // 1M context, ultra cheap ($0.10/$0.40)
-        "xai/grok-4-1-fast-non-reasoning", // Upgraded Grok 4.1
+        "deepseek/deepseek-chat", // 1,431ms, 41% retention
+        "moonshot/kimi-k2.5", // 1,646ms, strong tool use quality
+        "google/gemini-2.5-flash", // 1,238ms, 60% retention
+        "google/gemini-2.5-flash-lite", // 1,353ms, 1M context ($0.10/$0.40)
+        "xai/grok-3-mini", // 1,202ms, $0.30/$0.50
       ],
     },
     COMPLEX: {
-      primary: "google/gemini-3.1-pro", // Newest Gemini 3.1 - upgraded from 3.0
+      primary: "google/gemini-3.1-pro", // 1,609ms — fast flagship quality
       fallback: [
-        "google/gemini-2.5-flash", // 60% retention, cheap failsafe before expensive models
-        "google/gemini-2.5-flash-lite", // CRITICAL: 1M context, ultra-cheap failsafe ($0.10/$0.40)
-        "google/gemini-3-pro-preview", // 3.0 fallback
-        "google/gemini-2.5-pro",
-        "deepseek/deepseek-chat",
-        "xai/grok-4-0709",
-        "openai/gpt-5.4", // Newest flagship, same price as 4o
-        "openai/gpt-4o",
-        "anthropic/claude-sonnet-4.6",
+        "google/gemini-2.5-flash", // 1,238ms, cheap failsafe before expensive models
+        "google/gemini-2.5-flash-lite", // 1,353ms, 1M context, ultra-cheap failsafe ($0.10/$0.40)
+        "google/gemini-3-pro-preview", // 1,352ms
+        "google/gemini-2.5-pro", // 1,294ms
+        "xai/grok-4-0709", // 1,348ms
+        "deepseek/deepseek-chat", // 1,431ms
+        "anthropic/claude-sonnet-4.6", // 2,110ms — quality fallback
+        "openai/gpt-5.4", // 6,213ms — slowest but highest quality
       ],
     },
     REASONING: {
-      primary: "xai/grok-4-1-fast-reasoning", // Upgraded Grok 4.1 reasoning $0.20/$0.50
+      primary: "xai/grok-4-1-fast-reasoning", // 1,454ms, $0.20/$0.50
       fallback: [
-        "deepseek/deepseek-reasoner", // Cheap reasoning model
-        "openai/o4-mini", // Newer and cheaper than o3 ($1.10 vs $2.00)
-        "openai/o3",
+        "xai/grok-4-fast-reasoning", // 1,298ms, $0.20/$0.50
+        "deepseek/deepseek-reasoner", // 1,454ms, cheap reasoning
+        "openai/o4-mini", // 2,328ms ($1.10/$4.40)
+        "openai/o3", // 2,862ms
       ],
     },
   },
@@ -1085,24 +1088,24 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   // Eco tier configs - absolute cheapest (blockrun/eco)
   ecoTiers: {
     SIMPLE: {
-      primary: "nvidia/gpt-oss-120b", // FREE! $0.00/$0.00
+      primary: "nvidia/gpt-oss-120b", // 1,252ms, FREE! $0.00/$0.00
       fallback: [
-        "google/gemini-2.5-flash-lite",
-        "google/gemini-2.5-flash",
-        "deepseek/deepseek-chat",
+        "google/gemini-2.5-flash-lite", // 1,353ms, $0.10/$0.40
+        "xai/grok-4-fast-non-reasoning", // 1,143ms, $0.20/$0.50
+        "google/gemini-2.5-flash", // 1,238ms
       ],
     },
     MEDIUM: {
-      primary: "google/gemini-2.5-flash-lite", // $0.10/$0.40 - cheapest capable with 1M context
-      fallback: ["google/gemini-2.5-flash", "deepseek/deepseek-chat", "nvidia/gpt-oss-120b"],
+      primary: "google/gemini-2.5-flash-lite", // 1,353ms, $0.10/$0.40 - cheapest capable with 1M context
+      fallback: ["xai/grok-4-fast-non-reasoning", "google/gemini-2.5-flash", "deepseek/deepseek-chat", "nvidia/gpt-oss-120b"],
     },
     COMPLEX: {
-      primary: "google/gemini-2.5-flash-lite", // $0.10/$0.40 - 1M context handles complexity
-      fallback: ["google/gemini-2.5-flash", "deepseek/deepseek-chat", "xai/grok-4-0709"],
+      primary: "google/gemini-2.5-flash-lite", // 1,353ms, $0.10/$0.40 - 1M context handles complexity
+      fallback: ["xai/grok-4-0709", "google/gemini-2.5-flash", "deepseek/deepseek-chat"],
     },
     REASONING: {
-      primary: "xai/grok-4-1-fast-reasoning", // $0.20/$0.50
-      fallback: ["deepseek/deepseek-reasoner"],
+      primary: "xai/grok-4-1-fast-reasoning", // 1,454ms, $0.20/$0.50
+      fallback: ["xai/grok-4-fast-reasoning", "deepseek/deepseek-reasoner"],
     },
   },
 
@@ -1141,13 +1144,12 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
       ],
     },
     REASONING: {
-      primary: "anthropic/claude-sonnet-4.6", // $3/$15 - best for reasoning/instructions
+      primary: "anthropic/claude-sonnet-4.6", // 2,110ms, $3/$15 - best for reasoning/instructions
       fallback: [
-        "anthropic/claude-opus-4.6",
-        "anthropic/claude-opus-4.6",
-        "openai/o4-mini", // Newer and cheaper than o3 ($1.10 vs $2.00)
-        "openai/o3",
-        "xai/grok-4-1-fast-reasoning",
+        "anthropic/claude-opus-4.6", // 2,139ms
+        "xai/grok-4-1-fast-reasoning", // 1,454ms, cheap fast reasoning
+        "openai/o4-mini", // 2,328ms ($1.10/$4.40)
+        "openai/o3", // 2,862ms
       ],
     },
   },
@@ -1155,37 +1157,37 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   // Agentic tier configs - models that excel at multi-step autonomous tasks
   agenticTiers: {
     SIMPLE: {
-      primary: "moonshot/kimi-k2.5", // Cheaper than Haiku ($0.5/$2.4 vs $1/$5), larger context
+      primary: "xai/grok-4-1-fast-non-reasoning", // 1,244ms, $0.20/$0.50 — fast tool calling
       fallback: [
-        "anthropic/claude-haiku-4.5",
-        "xai/grok-4-1-fast-non-reasoning",
-        "openai/gpt-4o-mini",
+        "openai/gpt-4o-mini", // 2,764ms, $0.15/$0.60 - reliable tool compliance
+        "moonshot/kimi-k2.5", // 1,646ms, strong tool use quality
+        "anthropic/claude-haiku-4.5", // 2,305ms
       ],
     },
     MEDIUM: {
-      primary: "moonshot/kimi-k2.5", // $0.50/$2.40 - strong tool use, handles function calls correctly
+      primary: "moonshot/kimi-k2.5", // 1,646ms, $0.60/$3.00 - strong tool use, proper function calls
       fallback: [
-        "anthropic/claude-haiku-4.5",
-        "deepseek/deepseek-chat",
-        "xai/grok-4-1-fast-non-reasoning",
+        "xai/grok-4-1-fast-non-reasoning", // 1,244ms, fast fallback
+        "openai/gpt-4o-mini", // 2,764ms, reliable tool calling
+        "anthropic/claude-haiku-4.5", // 2,305ms
+        "deepseek/deepseek-chat", // 1,431ms
       ],
     },
     COMPLEX: {
-      primary: "anthropic/claude-sonnet-4.6",
+      primary: "anthropic/claude-sonnet-4.6", // 2,110ms — best agentic quality
       fallback: [
-        "anthropic/claude-opus-4.6", // Latest Opus - best agentic
-        "openai/gpt-5.4", // Newest flagship
-        "google/gemini-3.1-pro", // Newest Gemini
-        "google/gemini-3-pro-preview",
-        "xai/grok-4-0709",
+        "anthropic/claude-opus-4.6", // 2,139ms — top quality
+        "google/gemini-3.1-pro", // 1,609ms
+        "xai/grok-4-0709", // 1,348ms
+        "openai/gpt-5.4", // 6,213ms — slow but highest quality fallback
       ],
     },
     REASONING: {
-      primary: "anthropic/claude-sonnet-4.6", // Strong tool use + reasoning for agentic tasks
+      primary: "anthropic/claude-sonnet-4.6", // 2,110ms — strong tool use + reasoning
       fallback: [
-        "anthropic/claude-opus-4.6",
-        "xai/grok-4-1-fast-reasoning",
-        "deepseek/deepseek-reasoner",
+        "anthropic/claude-opus-4.6", // 2,139ms
+        "xai/grok-4-1-fast-reasoning", // 1,454ms
+        "deepseek/deepseek-reasoner", // 1,454ms
       ],
     },
   },
