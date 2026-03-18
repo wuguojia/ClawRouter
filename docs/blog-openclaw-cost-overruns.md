@@ -80,6 +80,8 @@ Layer 6 is the big one. Tool results — file reads, API responses, shell output
 
 ### 2. Automatic Tier Routing — Right Model for Each Request
 
+![Right-sizing models for specific agent tasks — ClawRouter's task-to-tier routing engine with session pinning routes heartbeats to Flash and reasoning to Opus](assets/blockrun-clawrouter-openclaw-automatic-tier-routing-model-selection.png)
+
 ClawRouter classifies every request before forwarding:
 
 ```
