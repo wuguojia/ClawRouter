@@ -74,16 +74,64 @@ This is the stack that lets agents operate autonomously: **x402 + USDC + local r
 
 ## Quick Start
 
+### Option A — OpenClaw (Claude Code agent)
+
+[OpenClaw](https://openclaw.ai) is an AI coding agent. If you're using it, ClawRouter installs as a plugin:
+
 ```bash
-# 1. Install with smart routing enabled
 curl -fsSL https://blockrun.ai/ClawRouter-update | bash
 openclaw gateway restart
-
-# 2. Fund your wallet with USDC on Base or Solana (address printed on install)
-# $5 is enough for thousands of requests
 ```
 
 Done. Smart routing (`blockrun/auto`) is now your default model.
+
+### Option B — Standalone (continue.dev, Cursor, VS Code, any OpenAI-compatible client)
+
+No OpenClaw required. ClawRouter runs as a local proxy on port 8402.
+
+**1. Start the proxy**
+```bash
+npx @blockrun/clawrouter
+```
+
+**2. Fund your wallet**
+Your wallet address is printed on first run. Send a few USDC on Base or Solana — $5 covers thousands of requests.
+
+**3. Point your client at `http://localhost:8402`**
+
+<details>
+<summary><strong>continue.dev</strong> — <code>~/.continue/config.json</code></summary>
+
+```json
+{
+  "models": [
+    {
+      "title": "ClawRouter Auto",
+      "provider": "openai",
+      "model": "blockrun/auto",
+      "apiBase": "http://localhost:8402",
+      "apiKey": "x402"
+    }
+  ]
+}
+```
+</details>
+
+<details>
+<summary><strong>Cursor</strong> — Settings → Models → OpenAI-compatible</summary>
+
+Set base URL to `http://localhost:8402`, API key to `x402`, model to `blockrun/auto`.
+</details>
+
+<details>
+<summary><strong>Any OpenAI SDK</strong></summary>
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8402", api_key="x402")
+response = client.chat.completions.create(model="blockrun/auto", messages=[...])
+```
+</details>
 
 ---
 
@@ -471,7 +519,7 @@ Both are open source and run locally. But ClawRouter adds smart routing (automat
 
 ### What agents does ClawRouter work with?
 
-ClawRouter integrates with OpenClaw (Claude Code), ElizaOS, and any agent that makes OpenAI-compatible API calls. It runs as a local proxy on port 8402.
+ClawRouter works with any tool that makes OpenAI-compatible API calls — point it at `http://localhost:8402`. This includes continue.dev, Cursor, VS Code extensions, ElizaOS, and custom agents. It also integrates as a plugin with [OpenClaw](https://openclaw.ai) (an AI coding agent), which enables additional features like slash commands and usage reports.
 
 ### Is ClawRouter free?
 
