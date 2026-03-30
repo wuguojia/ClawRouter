@@ -4,6 +4,13 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.87 — Mar 30, 2026
+
+- **Predexon skill** — New vendor skill ships with ClawRouter: 39 prediction market endpoints (Polymarket, Kalshi, dFlow, Binance, cross-market matching, wallet analytics, smart money). OpenClaw agents now auto-invoke this skill when users ask about prediction markets, market odds, or smart money positioning.
+- **Partner proxy extended** — `/v1/pm/*` paths now route through ClawRouter's partner proxy (same as `/v1/x/*`), enabling automatic x402 payment for all Predexon endpoints via `localhost:8402`.
+
+---
+
 ## v0.12.86 — Mar 29, 2026
 
 ### Fixed

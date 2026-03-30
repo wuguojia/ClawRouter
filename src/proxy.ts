@@ -2020,8 +2020,8 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         return;
       }
 
-      // --- Handle partner API paths (/v1/x/*, /v1/partner/*) ---
-      if (req.url?.match(/^\/v1\/(?:x|partner)\//)) {
+      // --- Handle partner API paths (/v1/x/*, /v1/partner/*, /v1/pm/*) ---
+      if (req.url?.match(/^\/v1\/(?:x|partner|pm)\//)) {
         try {
           await proxyPartnerRequest(
             req,
