@@ -102,7 +102,27 @@ Your wallet address is printed on first run. Send a few USDC on Base or Solana â
 **3. Point your client at `http://localhost:8402`**
 
 <details>
-<summary><strong>continue.dev</strong> â€” <code>~/.continue/config.json</code></summary>
+<summary><strong>continue.dev</strong> â€” <code>~/.continue/config.yaml</code></summary>
+
+> **Important:** Use `provider: openai` (not `provider: clawrouter`). The native `clawrouter` provider uses a different API path that is not compatible with the local proxy.
+
+```yaml
+models:
+  - name: ClawRouter Auto
+    provider: openai
+    model: blockrun/auto
+    apiBase: http://localhost:8402
+    apiKey: x402
+    roles:
+      - chat
+      - edit
+      - apply
+```
+
+To pin a specific model, replace `blockrun/auto` with any model from [blockrun.ai/models](https://blockrun.ai/models), e.g. `anthropic/claude-opus-4.6`, `xai/grok-4-0709`.
+
+<details>
+<summary>Legacy JSON format (<code>~/.continue/config.json</code>)</summary>
 
 ```json
 {
@@ -117,6 +137,7 @@ Your wallet address is printed on first run. Send a few USDC on Base or Solana â
   ]
 }
 ```
+</details>
 </details>
 
 <details>
