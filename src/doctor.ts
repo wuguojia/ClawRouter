@@ -53,6 +53,7 @@ interface LogInfo {
 
 interface DiagnosticResult {
   version: string;
+  latestVersion: string | null;
   timestamp: string;
   system: SystemInfo;
   wallet: WalletInfo;
@@ -77,6 +78,20 @@ function red(text: string): string {
 
 function yellow(text: string): string {
   return `\x1b[33m⚠\x1b[0m ${text}`;
+}
+
+// Fetch latest published version from npm registry
+async function fetchLatestVersion(): Promise<string | null> {
+  try {
+    const res = await fetch("https://registry.npmjs.org/@blockrun/clawrouter/latest", {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { version?: string };
+    return data.version ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Collect system info
@@ -247,6 +262,11 @@ function identifyIssues(result: DiagnosticResult): string[] {
   if (!result.network.localProxy.running) {
     issues.push(`Local proxy not running on port ${result.network.localProxy.port}`);
   }
+  if (result.latestVersion && result.latestVersion !== result.version) {
+    issues.push(
+      `Outdated version: running v${result.version}, latest is v${result.latestVersion}. Run: curl -fsSL https://blockrun.ai/ClawRouter-update | bash`,
+    );
+  }
 
   return issues;
 }
@@ -255,8 +275,22 @@ function identifyIssues(result: DiagnosticResult): string[] {
 function printDiagnostics(result: DiagnosticResult): void {
   console.log("\n🔍 Collecting diagnostics...\n");
 
+  // Version
+  console.log("Version");
+  if (result.latestVersion && result.latestVersion !== result.version) {
+    console.log(`  ${red(`Installed: v${result.version} (outdated!)`)}`);
+    console.log(`  ${yellow(`Latest:    v${result.latestVersion}`)}`);
+    console.log(
+      `  ${yellow(`Update:    curl -fsSL https://blockrun.ai/ClawRouter-update | bash`)}`,
+    );
+  } else if (result.latestVersion) {
+    console.log(`  ${green(`v${result.version} (up to date)`)}`);
+  } else {
+    console.log(`  ${green(`v${result.version}`)}`);
+  }
+
   // System
-  console.log("System");
+  console.log("\nSystem");
   console.log(`  ${green(`OS: ${result.system.os}`)}`);
   console.log(`  ${green(`Node: ${result.system.nodeVersion}`)}`);
   console.log(
@@ -428,15 +462,17 @@ export async function runDoctor(
   console.log(`\n🩺 BlockRun Doctor v${VERSION}\n`);
 
   // Collect all diagnostics
-  const [system, wallet, network, logs] = await Promise.all([
+  const [system, wallet, network, logs, latestVersion] = await Promise.all([
     collectSystemInfo(),
     collectWalletInfo(),
     collectNetworkInfo(),
     collectLogInfo(),
+    fetchLatestVersion(),
   ]);
 
   const result: DiagnosticResult = {
     version: VERSION,
+    latestVersion,
     timestamp: new Date().toISOString(),
     system,
     wallet,

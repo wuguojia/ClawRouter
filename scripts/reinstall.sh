@@ -323,22 +323,58 @@ if [ -n "$CREDS_BACKUP" ] && [ -d "$CREDS_BACKUP" ]; then
   rm -rf "$(dirname "$CREDS_BACKUP")"
 fi
 
-# 6.1. Verify installation (check dist/ files exist)
+# 6.1. Verify installation and force-update if openclaw installed a stale cached version
 echo "→ Verifying installation..."
 DIST_PATH="$PLUGIN_DIR/dist/index.js"
-if [ ! -f "$DIST_PATH" ]; then
-  echo "  ⚠️  dist/ files missing, clearing npm cache and retrying..."
-  npm cache clean --force 2>/dev/null || true
-  rm -rf "$PLUGIN_DIR"
-  openclaw plugins install @blockrun/clawrouter
 
+force_install_from_npm() {
+  local version="$1"
+  echo "  → Force-fetching v${version} directly from npm registry..."
+  local TMPPACK
+  TMPPACK=$(mktemp -d)
+  if npm pack "@blockrun/clawrouter@${version}" --pack-destination "$TMPPACK" --prefer-online >/dev/null 2>&1; then
+    local TARBALL
+    TARBALL=$(ls "$TMPPACK"/blockrun-clawrouter-*.tgz 2>/dev/null | head -1)
+    if [ -n "$TARBALL" ]; then
+      rm -rf "$PLUGIN_DIR"
+      mkdir -p "$PLUGIN_DIR"
+      tar -xzf "$TARBALL" -C "$PLUGIN_DIR" --strip-components=1
+      rm -rf "$TMPPACK"
+      echo "  ✓ Force-installed v${version} from npm registry"
+      return 0
+    fi
+  fi
+  rm -rf "$TMPPACK"
+  echo "  ✗ Force install failed"
+  return 1
+}
+
+if [ ! -f "$DIST_PATH" ]; then
+  echo "  ⚠️  dist/ files missing — openclaw install may have cached an old version"
+  LATEST_VER=$(npm view @blockrun/clawrouter@latest version 2>/dev/null || echo "")
+  if [ -n "$LATEST_VER" ]; then
+    force_install_from_npm "$LATEST_VER" || exit 1
+  else
+    echo "  ❌ Cannot determine latest version — check npm registry connection"
+    exit 1
+  fi
   if [ ! -f "$DIST_PATH" ]; then
     echo "  ❌ Installation failed - dist/index.js still missing"
     echo "  Please report this issue at https://github.com/BlockRunAI/ClawRouter/issues"
     exit 1
   fi
+else
+  # dist/ exists — verify we have the latest version (openclaw may have served cached old version)
+  INSTALLED_VER=$(node -e "try{const p=require('$PLUGIN_DIR/package.json');console.log(p.version);}catch{console.log('');}" 2>/dev/null || echo "")
+  LATEST_VER=$(npm view @blockrun/clawrouter@latest version 2>/dev/null || echo "")
+  if [ -n "$LATEST_VER" ] && [ -n "$INSTALLED_VER" ] && [ "$INSTALLED_VER" != "$LATEST_VER" ]; then
+    echo "  ⚠️  openclaw installed v${INSTALLED_VER} (cached) but latest is v${LATEST_VER}"
+    force_install_from_npm "$LATEST_VER" || true
+  fi
 fi
-echo "  ✓ dist/index.js verified"
+
+INSTALLED_VER=$(node -e "try{const p=require('$PLUGIN_DIR/package.json');console.log(p.version);}catch{console.log('?');}" 2>/dev/null || echo "?")
+echo "  ✓ ClawRouter v${INSTALLED_VER} installed"
 
 # 6.1b. Ensure all dependencies are installed (Solana, x402, etc.)
 # openclaw's plugin installer may skip native deps like @solana/kit.

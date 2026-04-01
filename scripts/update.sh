@@ -211,7 +211,41 @@ if [ -n "$CREDS_BACKUP" ] && [ -d "$CREDS_BACKUP" ]; then
   rm -rf "$(dirname "$CREDS_BACKUP")"
 fi
 
-# ── Step 4b: Ensure all dependencies are installed ────────────
+# ── Step 4b: Verify version — force-update if openclaw served a stale cache ──
+force_install_from_npm() {
+  local version="$1"
+  echo "  → Force-fetching v${version} directly from npm registry..."
+  local TMPPACK
+  TMPPACK=$(mktemp -d)
+  if npm pack "@blockrun/clawrouter@${version}" --pack-destination "$TMPPACK" --prefer-online >/dev/null 2>&1; then
+    local TARBALL
+    TARBALL=$(ls "$TMPPACK"/blockrun-clawrouter-*.tgz 2>/dev/null | head -1)
+    if [ -n "$TARBALL" ]; then
+      rm -rf "$PLUGIN_DIR"
+      mkdir -p "$PLUGIN_DIR"
+      tar -xzf "$TARBALL" -C "$PLUGIN_DIR" --strip-components=1
+      rm -rf "$TMPPACK"
+      echo "  ✓ Force-installed v${version} from npm registry"
+      return 0
+    fi
+  fi
+  rm -rf "$TMPPACK"
+  echo "  ✗ Force install failed"
+  return 1
+}
+
+if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
+  INSTALLED_VER=$(node -e "try{const p=require('$PLUGIN_DIR/package.json');console.log(p.version);}catch{console.log('');}" 2>/dev/null || echo "")
+  LATEST_VER=$(npm view @blockrun/clawrouter@latest version 2>/dev/null || echo "")
+  if [ -n "$LATEST_VER" ] && [ -n "$INSTALLED_VER" ] && [ "$INSTALLED_VER" != "$LATEST_VER" ]; then
+    echo "  ⚠️  openclaw installed v${INSTALLED_VER} (cached) but latest is v${LATEST_VER}"
+    force_install_from_npm "$LATEST_VER" || true
+  fi
+  INSTALLED_VER=$(node -e "try{const p=require('$PLUGIN_DIR/package.json');console.log(p.version);}catch{console.log('?');}" 2>/dev/null || echo "?")
+  echo "  ✓ ClawRouter v${INSTALLED_VER} installed"
+fi
+
+# ── Step 4c: Ensure all dependencies are installed ────────────
 # openclaw's plugin installer may skip native/optional deps like @solana/kit.
 # Run npm install in the plugin directory to fill any gaps.
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then

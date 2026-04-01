@@ -79095,6 +79095,18 @@ function red(text) {
 function yellow(text) {
   return `\x1B[33m\u26A0\x1B[0m ${text}`;
 }
+async function fetchLatestVersion() {
+  try {
+    const res = await fetch("https://registry.npmjs.org/@blockrun/clawrouter/latest", {
+      signal: AbortSignal.timeout(5e3)
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.version ?? null;
+  } catch {
+    return null;
+  }
+}
 function collectSystemInfo() {
   return {
     os: `${platform()} ${arch()}`,
@@ -79241,11 +79253,28 @@ function identifyIssues(result) {
   if (!result.network.localProxy.running) {
     issues.push(`Local proxy not running on port ${result.network.localProxy.port}`);
   }
+  if (result.latestVersion && result.latestVersion !== result.version) {
+    issues.push(
+      `Outdated version: running v${result.version}, latest is v${result.latestVersion}. Run: curl -fsSL https://blockrun.ai/ClawRouter-update | bash`
+    );
+  }
   return issues;
 }
 function printDiagnostics(result) {
   console.log("\n\u{1F50D} Collecting diagnostics...\n");
-  console.log("System");
+  console.log("Version");
+  if (result.latestVersion && result.latestVersion !== result.version) {
+    console.log(`  ${red(`Installed: v${result.version} (outdated!)`)}`);
+    console.log(`  ${yellow(`Latest:    v${result.latestVersion}`)}`);
+    console.log(
+      `  ${yellow(`Update:    curl -fsSL https://blockrun.ai/ClawRouter-update | bash`)}`
+    );
+  } else if (result.latestVersion) {
+    console.log(`  ${green(`v${result.version} (up to date)`)}`);
+  } else {
+    console.log(`  ${green(`v${result.version}`)}`);
+  }
+  console.log("\nSystem");
   console.log(`  ${green(`OS: ${result.system.os}`)}`);
   console.log(`  ${green(`Node: ${result.system.nodeVersion}`)}`);
   console.log(
@@ -79396,14 +79425,16 @@ async function runDoctor(userQuestion, model = "sonnet") {
   console.log(`
 \u{1FA7A} BlockRun Doctor v${VERSION}
 `);
-  const [system, wallet, network, logs] = await Promise.all([
+  const [system, wallet, network, logs, latestVersion] = await Promise.all([
     collectSystemInfo(),
     collectWalletInfo(),
     collectNetworkInfo(),
-    collectLogInfo()
+    collectLogInfo(),
+    fetchLatestVersion()
   ]);
   const result = {
     version: VERSION,
+    latestVersion,
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
     system,
     wallet,
