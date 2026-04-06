@@ -56534,11 +56534,23 @@ var init_solana_balance = __esm({
       async fetchBalance() {
         const owner = address(this.walletAddress);
         const mint = address(SOLANA_USDC_MINT);
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const result = await this.fetchBalanceOnce(owner, mint);
-          if (result > 0n || attempt === 1) return result;
-          await new Promise((r) => setTimeout(r, 1e3));
+        const MAX_ATTEMPTS = 3;
+        let lastError;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          try {
+            const result = await this.fetchBalanceOnce(owner, mint);
+            if (result > 0n) return result;
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+            }
+          } catch (err) {
+            lastError = err;
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+            }
+          }
         }
+        if (lastError !== void 0) throw lastError;
         return 0n;
       }
       async fetchBalanceOnce(owner, mint) {
@@ -78643,8 +78655,15 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
     if (estimated) {
       estimatedCostMicros = BigInt(estimated);
       const bufferedCostMicros = estimatedCostMicros * BigInt(Math.ceil(BALANCE_CHECK_BUFFER * 100)) / 100n;
-      const sufficiency = await balanceMonitor.checkSufficient(bufferedCostMicros);
-      if (sufficiency.info.isEmpty || !sufficiency.sufficient) {
+      let sufficiency = null;
+      try {
+        sufficiency = await balanceMonitor.checkSufficient(bufferedCostMicros);
+      } catch (balanceErr) {
+        console.warn(
+          `[ClawRouter] Balance check failed (${balanceErr instanceof Error ? balanceErr.message : String(balanceErr)}) \u2014 proceeding optimistically`
+        );
+      }
+      if (sufficiency && (sufficiency.info.isEmpty || !sufficiency.sufficient)) {
         const originalModel = modelId;
         console.log(
           `[ClawRouter] Wallet ${sufficiency.info.isEmpty ? "empty" : "insufficient"} (${sufficiency.info.balanceUSD}), falling back to free model: ${FREE_MODEL} (requested: ${originalModel})`
@@ -78654,16 +78673,18 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
         const parsed = JSON.parse(body.toString());
         parsed.model = toUpstreamModelId(FREE_MODEL);
         body = Buffer.from(JSON.stringify(parsed));
-        balanceFallbackNotice = sufficiency.info.isEmpty ? `> **\u26A0\uFE0F Wallet empty** \u2014 using free model. Fund your wallet to use ${originalModel}.
+        const walletAddr = sufficiency.info.walletAddress;
+        const fundHint = walletAddr ? ` Send USDC to \`${walletAddr}\`.` : " Run `/wallet` to see your address.";
+        balanceFallbackNotice = sufficiency.info.isEmpty ? `> **\u26A0\uFE0F Wallet empty** \u2014 using free model.${fundHint}
 
-` : `> **\u26A0\uFE0F Insufficient balance** (${sufficiency.info.balanceUSD}) \u2014 using free model instead of ${originalModel}.
+` : `> **\u26A0\uFE0F Insufficient balance** (${sufficiency.info.balanceUSD}) \u2014 using free model instead of ${originalModel}.${fundHint}
 
 `;
         options.onLowBalance?.({
           balanceUSD: sufficiency.info.balanceUSD,
           walletAddress: sufficiency.info.walletAddress
         });
-      } else if (sufficiency.info.isLow) {
+      } else if (sufficiency?.info.isLow) {
         options.onLowBalance?.({
           balanceUSD: sufficiency.info.balanceUSD,
           walletAddress: sufficiency.info.walletAddress
@@ -80594,7 +80615,7 @@ async function startProxyInBackground(api) {
     api.logger.info(`Wallet (${network}): ${displayAddress} | Balance: (checking...)`);
   });
 }
-async function createStatsCommand() {
+function createStatsCommand() {
   return {
     name: "stats",
     description: "Show ClawRouter usage statistics and cost savings",
@@ -80631,7 +80652,7 @@ async function createStatsCommand() {
     }
   };
 }
-async function createExcludeCommand() {
+function createExcludeCommand() {
   return {
     name: "exclude",
     description: "Manage excluded models \u2014 /exclude add|remove|clear <model>",
@@ -80706,7 +80727,26 @@ Usage:
     }
   };
 }
-async function createWalletCommand() {
+function restartProxyForChainSwitch(api) {
+  const oldHandle = activeProxyHandle;
+  activeProxyHandle = null;
+  const doRestart = async () => {
+    if (oldHandle) {
+      try {
+        await oldHandle.close();
+      } catch {
+      }
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    await startProxyInBackground(api);
+  };
+  doRestart().catch((err) => {
+    api.logger.error(
+      `Failed to restart proxy after chain switch: ${err instanceof Error ? err.message : String(err)}`
+    );
+  });
+}
+function createWalletCommand(api) {
   return {
     name: "wallet",
     description: "Show BlockRun wallet info, usage stats, or export private key",
@@ -80798,9 +80838,11 @@ Run \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
               const { createKeyPairSignerFromPrivateKeyBytes: createKeyPairSignerFromPrivateKeyBytes3 } = await Promise.resolve().then(() => (init_index_node37(), index_node_exports));
               const signer2 = await createKeyPairSignerFromPrivateKeyBytes3(solKeyBytes);
               solanaAddr = signer2.address;
+              if (api) restartProxyForChainSwitch(api);
               return {
                 text: [
-                  "Payment chain set to Solana. Restart the gateway to apply.",
+                  "\u2713 Payment chain switched to **Solana**.",
+                  api ? "Proxy restarting in background (~2s)." : "Restart the gateway to apply.",
                   "",
                   `**Solana Address:** \`${solanaAddr}\``,
                   `**Fund with USDC on Solana:** https://solscan.io/account/${solanaAddr}`
@@ -80812,6 +80854,7 @@ Run \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
           await savePaymentChain("solana");
           const { createKeyPairSignerFromPrivateKeyBytes: createKeyPairSignerFromPrivateKeyBytes2 } = await Promise.resolve().then(() => (init_index_node37(), index_node_exports));
           const signer = await createKeyPairSignerFromPrivateKeyBytes2(solanaPrivateKeyBytes);
+          if (api) restartProxyForChainSwitch(api);
           return {
             text: [
               "**Solana Wallet Set Up**",
@@ -80820,7 +80863,7 @@ Run \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
               `**Mnemonic File:** \`${MNEMONIC_FILE}\``,
               "",
               "Your existing EVM wallet is unchanged.",
-              "Payment chain set to Solana. Restart the gateway to apply.",
+              api ? "\u2713 Payment chain switched to Solana. Proxy restarting in background (~2s)." : "Payment chain set to Solana. Restart the gateway to apply.",
               "",
               `**Fund with USDC on Solana:** https://solscan.io/account/${signer.address}`
             ].join("\n")
@@ -80835,8 +80878,9 @@ Run \`openclaw plugins install @blockrun/clawrouter\` to generate a wallet.`,
       if (subcommand === "base") {
         try {
           await savePaymentChain("base");
+          if (api) restartProxyForChainSwitch(api);
           return {
-            text: "Payment chain set to Base (EVM). Restart the gateway to apply."
+            text: api ? "\u2713 Payment chain switched to **Base (EVM)**. Proxy restarting in background (~2s)." : "Payment chain set to Base (EVM). Restart the gateway to apply."
           };
         } catch (err) {
           return {
@@ -80946,6 +80990,9 @@ var plugin = {
       api.registerProvider(blockrunProvider);
       return;
     }
+    const proc = process;
+    if (proc.__clawrouterRegistered) return;
+    proc.__clawrouterRegistered = true;
     api.registerProvider(blockrunProvider);
     injectModelsConfig(api.logger);
     injectAuthProfile(api.logger);
@@ -81005,27 +81052,9 @@ var plugin = {
         `Failed to register partner tools: ${err instanceof Error ? err.message : String(err)}`
       );
     }
-    createWalletCommand().then((walletCommand) => {
-      api.registerCommand(walletCommand);
-    }).catch((err) => {
-      api.logger.warn(
-        `Failed to register /wallet command: ${err instanceof Error ? err.message : String(err)}`
-      );
-    });
-    createStatsCommand().then((statsCommand) => {
-      api.registerCommand(statsCommand);
-    }).catch((err) => {
-      api.logger.warn(
-        `Failed to register /stats command: ${err instanceof Error ? err.message : String(err)}`
-      );
-    });
-    createExcludeCommand().then((excludeCommand) => {
-      api.registerCommand(excludeCommand);
-    }).catch((err) => {
-      api.logger.warn(
-        `Failed to register /exclude command: ${err instanceof Error ? err.message : String(err)}`
-      );
-    });
+    api.registerCommand(createWalletCommand(api));
+    api.registerCommand(createStatsCommand());
+    api.registerCommand(createExcludeCommand());
     api.registerService({
       id: "clawrouter-proxy",
       start: () => {

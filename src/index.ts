@@ -672,7 +672,7 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
  * /stats command handler for ClawRouter.
  * Shows usage statistics and cost savings.
  */
-async function createStatsCommand(): Promise<OpenClawPluginCommandDefinition> {
+function createStatsCommand(): OpenClawPluginCommandDefinition {
   return {
     name: "stats",
     description: "Show ClawRouter usage statistics and cost savings",
@@ -718,7 +718,7 @@ async function createStatsCommand(): Promise<OpenClawPluginCommandDefinition> {
  * /exclude command handler for ClawRouter.
  * Manages excluded models — /exclude add|remove|clear <model>
  */
-async function createExcludeCommand(): Promise<OpenClawPluginCommandDefinition> {
+function createExcludeCommand(): OpenClawPluginCommandDefinition {
   return {
     name: "exclude",
     description: "Manage excluded models — /exclude add|remove|clear <model>",
@@ -835,9 +835,9 @@ function restartProxyForChainSwitch(api: OpenClawPluginApi): void {
   });
 }
 
-async function createWalletCommand(
+function createWalletCommand(
   api?: OpenClawPluginApi,
-): Promise<OpenClawPluginCommandDefinition> {
+): OpenClawPluginCommandDefinition {
   return {
     name: "wallet",
     description: "Show BlockRun wallet info, usage stats, or export private key",
@@ -1230,38 +1230,12 @@ const plugin: OpenClawPluginDefinition = {
       );
     }
 
-    // Register /wallet command — shows wallet info + per-model usage stats
-    createWalletCommand(api)
-      .then((walletCommand) => {
-        api.registerCommand(walletCommand);
-      })
-      .catch((err) => {
-        api.logger.warn(
-          `Failed to register /wallet command: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
-
-    // Register /stats command for usage statistics
-    createStatsCommand()
-      .then((statsCommand) => {
-        api.registerCommand(statsCommand);
-      })
-      .catch((err) => {
-        api.logger.warn(
-          `Failed to register /stats command: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
-
-    // Register /exclude command for model exclusion management
-    createExcludeCommand()
-      .then((excludeCommand) => {
-        api.registerCommand(excludeCommand);
-      })
-      .catch((err) => {
-        api.logger.warn(
-          `Failed to register /exclude command: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+    // Register commands synchronously so OpenClaw sees them during the register() call.
+    // These factories are plain functions (no top-level await) — marking them async
+    // caused .then() callbacks to fire after register() returned, making OpenClaw miss them.
+    api.registerCommand(createWalletCommand(api));
+    api.registerCommand(createStatsCommand());
+    api.registerCommand(createExcludeCommand());
 
     // Register a service with stop() for cleanup on gateway shutdown
     // This prevents EADDRINUSE when the gateway restarts
