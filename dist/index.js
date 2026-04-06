@@ -76364,6 +76364,7 @@ var paymentStore = new AsyncLocalStorage();
 var BLOCKRUN_API = "https://blockrun.ai/api";
 var BLOCKRUN_SOLANA_API = "https://sol.blockrun.ai/api";
 var IMAGE_DIR = join8(homedir5(), ".openclaw", "blockrun", "images");
+var AUDIO_DIR = join8(homedir5(), ".openclaw", "blockrun", "audio");
 var AUTO_MODEL = "blockrun/auto";
 var ROUTING_PROFILES = /* @__PURE__ */ new Set([
   "blockrun/eco",
@@ -77381,6 +77382,36 @@ async function startProxy(options) {
         }
         return;
       }
+      if (req.url?.startsWith("/audio/") && req.method === "GET") {
+        const filename = req.url.slice("/audio/".length).split("?")[0].replace(/[^a-zA-Z0-9._-]/g, "");
+        if (!filename) {
+          res.writeHead(400);
+          res.end("Bad request");
+          return;
+        }
+        const filePath = join8(AUDIO_DIR, filename);
+        try {
+          const s3 = await fsStat(filePath);
+          if (!s3.isFile()) throw new Error("not a file");
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "mp3";
+          const mime = {
+            mp3: "audio/mpeg",
+            wav: "audio/wav",
+            ogg: "audio/ogg",
+            m4a: "audio/mp4"
+          };
+          const data = await readFile(filePath);
+          res.writeHead(200, {
+            "Content-Type": mime[ext] ?? "audio/mpeg",
+            "Content-Length": data.length
+          });
+          res.end(data);
+        } catch {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Audio not found" }));
+        }
+        return;
+      }
       if (req.url === "/v1/images/generations" && req.method === "POST") {
         const imgStartTime = Date.now();
         const chunks = [];
@@ -77584,6 +77615,86 @@ async function startProxy(options) {
           if (!res.headersSent) {
             res.writeHead(502, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Image editing failed", details: msg }));
+          }
+        }
+        return;
+      }
+      if (req.url === "/v1/audio/generations" && req.method === "POST") {
+        const audioStartTime = Date.now();
+        const chunks = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const reqBody = Buffer.concat(chunks);
+        let audioModel = "minimax/music-2.5+";
+        try {
+          const parsed = JSON.parse(reqBody.toString());
+          audioModel = parsed.model || audioModel;
+        } catch {
+        }
+        try {
+          const upstream = await payFetch(`${apiBase}/v1/audio/generations`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "user-agent": USER_AGENT },
+            body: reqBody
+          });
+          const text = await upstream.text();
+          if (!upstream.ok) {
+            res.writeHead(upstream.status, { "Content-Type": "application/json" });
+            res.end(text);
+            return;
+          }
+          let result;
+          try {
+            result = JSON.parse(text);
+          } catch {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(text);
+            return;
+          }
+          if (result.data?.length) {
+            await mkdir3(AUDIO_DIR, { recursive: true });
+            const port2 = server.address()?.port ?? 8402;
+            for (const track of result.data) {
+              if (track.url?.startsWith("https://") || track.url?.startsWith("http://")) {
+                try {
+                  const audioResp = await fetch(track.url);
+                  if (audioResp.ok) {
+                    const contentType = audioResp.headers.get("content-type") ?? "audio/mpeg";
+                    const ext = contentType.includes("wav") ? "wav" : "mp3";
+                    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+                    const buf = Buffer.from(await audioResp.arrayBuffer());
+                    await writeFile2(join8(AUDIO_DIR, filename), buf);
+                    track.url = `http://localhost:${port2}/audio/${filename}`;
+                    console.log(`[ClawRouter] Audio saved \u2192 ${track.url}`);
+                  }
+                } catch (downloadErr) {
+                  console.warn(
+                    `[ClawRouter] Failed to download audio, using original URL: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`
+                  );
+                }
+              }
+            }
+          }
+          const audioActualCost = paymentStore.getStore()?.amountUsd ?? 0.15;
+          logUsage({
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            model: audioModel,
+            tier: "AUDIO",
+            cost: audioActualCost,
+            baselineCost: audioActualCost,
+            savings: 0,
+            latencyMs: Date.now() - audioStartTime
+          }).catch(() => {
+          });
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[ClawRouter] Audio generation error: ${msg}`);
+          if (!res.headersSent) {
+            res.writeHead(502, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Audio generation failed", details: msg }));
           }
         }
         return;
@@ -79576,6 +79687,7 @@ import {
   copyFileSync,
   renameSync
 } from "fs";
+import { readFile as readFileAsync } from "fs/promises";
 import { homedir as homedir7 } from "os";
 import { join as join10, dirname as dirname3 } from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
@@ -80727,6 +80839,135 @@ Usage:
     }
   };
 }
+var IMAGE_DIR2 = join10(homedir7(), ".openclaw", "blockrun", "images");
+var AUDIO_DIR2 = join10(homedir7(), ".openclaw", "blockrun", "audio");
+function buildImageGenerationProvider() {
+  return {
+    id: "blockrun",
+    label: "BlockRun",
+    defaultModel: "openai/gpt-image-1",
+    models: [
+      "openai/gpt-image-1",
+      "openai/dall-e-3",
+      "google/nano-banana",
+      "google/nano-banana-pro"
+    ],
+    capabilities: {
+      generate: {
+        maxCount: 1,
+        supportsSize: true,
+        supportsAspectRatio: false,
+        supportsResolution: false
+      },
+      edit: { enabled: false },
+      geometry: {
+        sizes: [
+          "1024x1024",
+          "1536x1024",
+          "1024x1536",
+          "1792x1024",
+          "1024x1792",
+          "2048x2048",
+          "4096x4096"
+        ]
+      }
+    },
+    isConfigured: () => existsSync3(WALLET_FILE),
+    generateImage: async (req) => {
+      const port = getProxyPort();
+      const body = JSON.stringify({
+        model: req.model,
+        prompt: req.prompt,
+        size: req.size ?? "1024x1024",
+        n: req.count ?? 1
+      });
+      const resp = await fetch(`http://127.0.0.1:${port}/v1/images/generations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        signal: req.timeoutMs ? AbortSignal.timeout(req.timeoutMs) : void 0
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        throw new Error(`BlockRun image generation failed (${resp.status}): ${errText}`);
+      }
+      const result = await resp.json();
+      const images = await Promise.all(
+        (result.data ?? []).map(async (img) => {
+          const filename = img.url?.split("/images/").pop();
+          if (!filename) throw new Error(`Unexpected image URL format: ${img.url}`);
+          const filePath = join10(IMAGE_DIR2, filename);
+          const buffer2 = await readFileAsync(filePath);
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "png";
+          const mimeType = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+          return { buffer: buffer2, mimeType, fileName: filename, revisedPrompt: img.revised_prompt };
+        })
+      );
+      return { images, model: result.model ?? req.model };
+    }
+  };
+}
+function buildMusicGenerationProvider() {
+  return {
+    id: "blockrun",
+    label: "BlockRun",
+    defaultModel: "minimax/music-2.5+",
+    models: ["minimax/music-2.5+", "minimax/music-2.5"],
+    capabilities: {
+      maxTracks: 1,
+      maxDurationSeconds: 240,
+      supportsLyrics: true,
+      supportsInstrumental: true,
+      supportsDuration: true,
+      supportsFormat: true,
+      supportedFormats: ["mp3"]
+    },
+    isConfigured: () => existsSync3(WALLET_FILE),
+    generateMusic: async (req) => {
+      const port = getProxyPort();
+      const body = JSON.stringify({
+        model: req.model,
+        prompt: req.prompt,
+        ...req.lyrics ? { lyrics: req.lyrics } : {},
+        ...req.instrumental !== void 0 ? { instrumental: req.instrumental } : {},
+        ...req.durationSeconds ? { duration_seconds: req.durationSeconds } : {}
+      });
+      const timeoutMs = req.timeoutMs ?? 2e5;
+      const resp = await fetch(`http://127.0.0.1:${port}/v1/audio/generations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        throw new Error(`BlockRun music generation failed (${resp.status}): ${errText}`);
+      }
+      const result = await resp.json();
+      const tracks = await Promise.all(
+        (result.data ?? []).map(async (track) => {
+          const filename = track.url?.split("/audio/").pop();
+          if (!filename) throw new Error(`Unexpected audio URL format: ${track.url}`);
+          const filePath = join10(AUDIO_DIR2, filename);
+          const buffer2 = await readFileAsync(filePath);
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "mp3";
+          const mimeType = ext === "wav" ? "audio/wav" : "audio/mpeg";
+          return {
+            buffer: buffer2,
+            mimeType,
+            fileName: filename,
+            metadata: {
+              ...track.duration_seconds ? { duration_seconds: track.duration_seconds } : {},
+              ...track.lyrics ? { lyrics: track.lyrics } : {}
+            }
+          };
+        })
+      );
+      const allLyrics = (result.data ?? []).map((t) => t.lyrics).filter((l2) => Boolean(l2));
+      return { tracks, model: result.model ?? req.model, lyrics: allLyrics.length ? allLyrics : void 0 };
+    }
+  };
+}
 function restartProxyForChainSwitch(api) {
   const oldHandle = activeProxyHandle;
   activeProxyHandle = null;
@@ -80994,6 +81235,8 @@ var plugin = {
     if (proc.__clawrouterRegistered) return;
     proc.__clawrouterRegistered = true;
     api.registerProvider(blockrunProvider);
+    api.registerImageGenerationProvider(buildImageGenerationProvider());
+    api.registerMusicGenerationProvider(buildMusicGenerationProvider());
     injectModelsConfig(api.logger);
     injectAuthProfile(api.logger);
     const runtimePort = getProxyPort();

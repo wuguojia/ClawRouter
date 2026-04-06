@@ -96,6 +96,7 @@ import { applyUpstreamProxy } from "./upstream-proxy.js";
 const BLOCKRUN_API = "https://blockrun.ai/api";
 const BLOCKRUN_SOLANA_API = "https://sol.blockrun.ai/api";
 const IMAGE_DIR = join(homedir(), ".openclaw", "blockrun", "images");
+const AUDIO_DIR = join(homedir(), ".openclaw", "blockrun", "audio");
 // Routing profile models - virtual models that trigger intelligent routing
 const AUTO_MODEL = "blockrun/auto";
 
@@ -1836,6 +1837,41 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         return;
       }
 
+      // --- Serve locally cached audio (~/.openclaw/blockrun/audio/) ---
+      if (req.url?.startsWith("/audio/") && req.method === "GET") {
+        const filename = req.url
+          .slice("/audio/".length)
+          .split("?")[0]!
+          .replace(/[^a-zA-Z0-9._-]/g, "");
+        if (!filename) {
+          res.writeHead(400);
+          res.end("Bad request");
+          return;
+        }
+        const filePath = join(AUDIO_DIR, filename);
+        try {
+          const s = await fsStat(filePath);
+          if (!s.isFile()) throw new Error("not a file");
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "mp3";
+          const mime: Record<string, string> = {
+            mp3: "audio/mpeg",
+            wav: "audio/wav",
+            ogg: "audio/ogg",
+            m4a: "audio/mp4",
+          };
+          const data = await readFile(filePath);
+          res.writeHead(200, {
+            "Content-Type": mime[ext] ?? "audio/mpeg",
+            "Content-Length": data.length,
+          });
+          res.end(data);
+        } catch {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Audio not found" }));
+        }
+        return;
+      }
+
       // --- Handle /v1/images/generations: proxy with x402 payment + save data URIs locally ---
       // NOTE: image generation endpoints bypass maxCostPerRun budget tracking entirely.
       // Cost is charged via x402 micropayment directly — no session accumulation or cap enforcement.
@@ -2070,6 +2106,89 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
           if (!res.headersSent) {
             res.writeHead(502, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Image editing failed", details: msg }));
+          }
+        }
+        return;
+      }
+
+      // --- Handle /v1/audio/generations: proxy with x402 payment + save audio locally ---
+      if (req.url === "/v1/audio/generations" && req.method === "POST") {
+        const audioStartTime = Date.now();
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const reqBody = Buffer.concat(chunks);
+        let audioModel = "minimax/music-2.5+";
+        try {
+          const parsed = JSON.parse(reqBody.toString());
+          audioModel = parsed.model || audioModel;
+        } catch {
+          /* use defaults */
+        }
+        try {
+          const upstream = await payFetch(`${apiBase}/v1/audio/generations`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "user-agent": USER_AGENT },
+            body: reqBody,
+          });
+          const text = await upstream.text();
+          if (!upstream.ok) {
+            res.writeHead(upstream.status, { "Content-Type": "application/json" });
+            res.end(text);
+            return;
+          }
+          let result: { created?: number; model?: string; data?: Array<{ url?: string; duration_seconds?: number; lyrics?: string }> };
+          try {
+            result = JSON.parse(text);
+          } catch {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(text);
+            return;
+          }
+          // Download audio from remote URL and save locally
+          if (result.data?.length) {
+            await mkdir(AUDIO_DIR, { recursive: true });
+            const port = (server.address() as AddressInfo | null)?.port ?? 8402;
+            for (const track of result.data) {
+              if (track.url?.startsWith("https://") || track.url?.startsWith("http://")) {
+                try {
+                  const audioResp = await fetch(track.url);
+                  if (audioResp.ok) {
+                    const contentType = audioResp.headers.get("content-type") ?? "audio/mpeg";
+                    const ext = contentType.includes("wav") ? "wav" : "mp3";
+                    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+                    const buf = Buffer.from(await audioResp.arrayBuffer());
+                    await writeFile(join(AUDIO_DIR, filename), buf);
+                    track.url = `http://localhost:${port}/audio/${filename}`;
+                    console.log(`[ClawRouter] Audio saved → ${track.url}`);
+                  }
+                } catch (downloadErr) {
+                  console.warn(
+                    `[ClawRouter] Failed to download audio, using original URL: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`,
+                  );
+                }
+              }
+            }
+          }
+          const audioActualCost = paymentStore.getStore()?.amountUsd ?? 0.15;
+          logUsage({
+            timestamp: new Date().toISOString(),
+            model: audioModel,
+            tier: "AUDIO",
+            cost: audioActualCost,
+            baselineCost: audioActualCost,
+            savings: 0,
+            latencyMs: Date.now() - audioStartTime,
+          }).catch(() => {});
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[ClawRouter] Audio generation error: ${msg}`);
+          if (!res.headersSent) {
+            res.writeHead(502, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Audio generation failed", details: msg }));
           }
         }
         return;

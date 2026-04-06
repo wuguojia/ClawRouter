@@ -22,6 +22,10 @@ import type {
   OpenClawPluginApi,
   PluginCommandContext,
   OpenClawPluginCommandDefinition,
+  ImageGenerationProviderPlugin,
+  ImageGenerationRequest,
+  MusicGenerationProviderPlugin,
+  MusicGenerationRequest,
 } from "./types.js";
 import { blockrunProvider, setActiveProxy } from "./provider.js";
 import { startProxy, getProxyPort } from "./proxy.js";
@@ -69,6 +73,7 @@ import {
   copyFileSync,
   renameSync,
 } from "node:fs";
+import { readFile as readFileAsync } from "node:fs/promises";
 import { readTextFileSync } from "./fs-read.js";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -807,6 +812,165 @@ function createExcludeCommand(): OpenClawPluginCommandDefinition {
  * - /wallet export: Show private key for backup (with security warning)
  */
 
+// Local directories where the proxy saves media files
+const IMAGE_DIR = join(homedir(), ".openclaw", "blockrun", "images");
+const AUDIO_DIR = join(homedir(), ".openclaw", "blockrun", "audio");
+
+/**
+ * Build the ImageGenerationProvider that registers BlockRun image models
+ * with OpenClaw's native image generation UI.
+ * Delegates to the local proxy (which handles x402 payment).
+ */
+function buildImageGenerationProvider(): ImageGenerationProviderPlugin {
+  return {
+    id: "blockrun",
+    label: "BlockRun",
+    defaultModel: "openai/gpt-image-1",
+    models: [
+      "openai/gpt-image-1",
+      "openai/dall-e-3",
+      "google/nano-banana",
+      "google/nano-banana-pro",
+    ],
+    capabilities: {
+      generate: {
+        maxCount: 1,
+        supportsSize: true,
+        supportsAspectRatio: false,
+        supportsResolution: false,
+      },
+      edit: { enabled: false },
+      geometry: {
+        sizes: [
+          "1024x1024",
+          "1536x1024",
+          "1024x1536",
+          "1792x1024",
+          "1024x1792",
+          "2048x2048",
+          "4096x4096",
+        ],
+      },
+    },
+    isConfigured: () => existsSync(WALLET_FILE),
+    generateImage: async (req: ImageGenerationRequest) => {
+      const port = getProxyPort();
+      const body = JSON.stringify({
+        model: req.model,
+        prompt: req.prompt,
+        size: req.size ?? "1024x1024",
+        n: req.count ?? 1,
+      });
+      const resp = await fetch(`http://127.0.0.1:${port}/v1/images/generations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        signal: req.timeoutMs ? AbortSignal.timeout(req.timeoutMs) : undefined,
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        throw new Error(`BlockRun image generation failed (${resp.status}): ${errText}`);
+      }
+      const result = (await resp.json()) as {
+        data?: Array<{ url?: string; revised_prompt?: string }>;
+        model?: string;
+      };
+      const images = await Promise.all(
+        (result.data ?? []).map(async (img) => {
+          // URL format: http://localhost:PORT/images/FILENAME
+          const filename = img.url?.split("/images/").pop();
+          if (!filename) throw new Error(`Unexpected image URL format: ${img.url}`);
+          const filePath = join(IMAGE_DIR, filename);
+          const buffer = await readFileAsync(filePath);
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "png";
+          const mimeType =
+            ext === "jpg" || ext === "jpeg"
+              ? "image/jpeg"
+              : ext === "webp"
+                ? "image/webp"
+                : "image/png";
+          return { buffer, mimeType, fileName: filename, revisedPrompt: img.revised_prompt };
+        }),
+      );
+      return { images, model: result.model ?? req.model };
+    },
+  };
+}
+
+/**
+ * Build the MusicGenerationProvider that registers BlockRun music models
+ * with OpenClaw's native music generation UI.
+ * Delegates to the local proxy (which handles x402 payment).
+ */
+function buildMusicGenerationProvider(): MusicGenerationProviderPlugin {
+  return {
+    id: "blockrun",
+    label: "BlockRun",
+    defaultModel: "minimax/music-2.5+",
+    models: ["minimax/music-2.5+", "minimax/music-2.5"],
+    capabilities: {
+      maxTracks: 1,
+      maxDurationSeconds: 240,
+      supportsLyrics: true,
+      supportsInstrumental: true,
+      supportsDuration: true,
+      supportsFormat: true,
+      supportedFormats: ["mp3"],
+    },
+    isConfigured: () => existsSync(WALLET_FILE),
+    generateMusic: async (req: MusicGenerationRequest) => {
+      const port = getProxyPort();
+      const body = JSON.stringify({
+        model: req.model,
+        prompt: req.prompt,
+        ...(req.lyrics ? { lyrics: req.lyrics } : {}),
+        ...(req.instrumental !== undefined ? { instrumental: req.instrumental } : {}),
+        ...(req.durationSeconds ? { duration_seconds: req.durationSeconds } : {}),
+      });
+      // Music generation can take up to 3 minutes
+      const timeoutMs = req.timeoutMs ?? 200_000;
+      const resp = await fetch(`http://127.0.0.1:${port}/v1/audio/generations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        throw new Error(`BlockRun music generation failed (${resp.status}): ${errText}`);
+      }
+      const result = (await resp.json()) as {
+        data?: Array<{ url?: string; duration_seconds?: number; lyrics?: string }>;
+        model?: string;
+      };
+      const tracks = await Promise.all(
+        (result.data ?? []).map(async (track) => {
+          // URL format: http://localhost:PORT/audio/FILENAME
+          const filename = track.url?.split("/audio/").pop();
+          if (!filename) throw new Error(`Unexpected audio URL format: ${track.url}`);
+          const filePath = join(AUDIO_DIR, filename);
+          const buffer = await readFileAsync(filePath);
+          const ext = filename.split(".").pop()?.toLowerCase() ?? "mp3";
+          const mimeType = ext === "wav" ? "audio/wav" : "audio/mpeg";
+          return {
+            buffer,
+            mimeType,
+            fileName: filename,
+            metadata: {
+              ...(track.duration_seconds ? { duration_seconds: track.duration_seconds } : {}),
+              ...(track.lyrics ? { lyrics: track.lyrics } : {}),
+            },
+          };
+        }),
+      );
+      const allLyrics = (result.data ?? [])
+        .map((t) => t.lyrics)
+        .filter((l): l is string => Boolean(l));
+      return { tracks, model: result.model ?? req.model, lyrics: allLyrics.length ? allLyrics : undefined };
+    },
+  };
+}
+
 /**
  * Restart the proxy in-place after a chain switch.
  * Closes the running proxy (freeing port 8402) and starts a fresh one
@@ -1155,6 +1319,11 @@ const plugin: OpenClawPluginDefinition = {
 
     // Register BlockRun as a provider (sync — available immediately)
     api.registerProvider(blockrunProvider);
+
+    // Register native image and music generation providers so BlockRun models
+    // appear in OpenClaw's /imagine and music generation UIs.
+    api.registerImageGenerationProvider(buildImageGenerationProvider());
+    api.registerMusicGenerationProvider(buildMusicGenerationProvider());
 
     // Inject models config into OpenClaw config file
     // This persists the config so models are recognized on restart

@@ -93,6 +93,114 @@ type OpenClawPluginService = {
     start: () => void | Promise<void>;
     stop?: () => void | Promise<void>;
 };
+type ImageGenerationResolution = "1K" | "2K" | "4K";
+type GeneratedImageAsset = {
+    buffer: Buffer;
+    mimeType: string;
+    fileName?: string;
+    revisedPrompt?: string;
+    metadata?: Record<string, unknown>;
+};
+type ImageGenerationSourceImage = {
+    buffer: Buffer;
+    mimeType: string;
+    fileName?: string;
+    metadata?: Record<string, unknown>;
+};
+type ImageGenerationRequest = {
+    provider: string;
+    model: string;
+    prompt: string;
+    cfg: Record<string, unknown>;
+    agentDir?: string;
+    timeoutMs?: number;
+    count?: number;
+    size?: string;
+    aspectRatio?: string;
+    resolution?: ImageGenerationResolution;
+    inputImages?: ImageGenerationSourceImage[];
+};
+type ImageGenerationResult = {
+    images: GeneratedImageAsset[];
+    model?: string;
+    metadata?: Record<string, unknown>;
+};
+type ImageGenerationProviderCapabilities = {
+    generate: {
+        maxCount?: number;
+        supportsSize?: boolean;
+        supportsAspectRatio?: boolean;
+        supportsResolution?: boolean;
+    };
+    edit: {
+        enabled: boolean;
+        maxInputImages?: number;
+        maxCount?: number;
+        supportsSize?: boolean;
+    };
+    geometry?: {
+        sizes?: string[];
+        resolutions?: ImageGenerationResolution[];
+    };
+};
+type ImageGenerationProviderPlugin = {
+    id: string;
+    aliases?: string[];
+    label?: string;
+    defaultModel?: string;
+    models?: string[];
+    capabilities: ImageGenerationProviderCapabilities;
+    isConfigured?: (ctx: {
+        cfg?: Record<string, unknown>;
+    }) => boolean;
+    generateImage: (req: ImageGenerationRequest) => Promise<ImageGenerationResult>;
+};
+type MusicGenerationOutputFormat = "mp3" | "wav";
+type GeneratedMusicAsset = {
+    buffer: Buffer;
+    mimeType: string;
+    fileName?: string;
+    metadata?: Record<string, unknown>;
+};
+type MusicGenerationRequest = {
+    provider: string;
+    model: string;
+    prompt: string;
+    cfg: Record<string, unknown>;
+    agentDir?: string;
+    timeoutMs?: number;
+    lyrics?: string;
+    instrumental?: boolean;
+    durationSeconds?: number;
+    format?: MusicGenerationOutputFormat;
+};
+type MusicGenerationResult = {
+    tracks: GeneratedMusicAsset[];
+    model?: string;
+    lyrics?: string[];
+    metadata?: Record<string, unknown>;
+};
+type MusicGenerationProviderCapabilities = {
+    maxTracks?: number;
+    maxDurationSeconds?: number;
+    supportsLyrics?: boolean;
+    supportsInstrumental?: boolean;
+    supportsDuration?: boolean;
+    supportsFormat?: boolean;
+    supportedFormats?: readonly MusicGenerationOutputFormat[];
+};
+type MusicGenerationProviderPlugin = {
+    id: string;
+    aliases?: string[];
+    label?: string;
+    defaultModel?: string;
+    models?: string[];
+    capabilities: MusicGenerationProviderCapabilities;
+    isConfigured?: (ctx: {
+        cfg?: Record<string, unknown>;
+    }) => boolean;
+    generateMusic: (req: MusicGenerationRequest) => Promise<MusicGenerationResult>;
+};
 type OpenClawPluginApi = {
     id: string;
     name: string;
@@ -108,6 +216,9 @@ type OpenClawPluginApi = {
     pluginConfig?: Record<string, unknown>;
     logger: PluginLogger;
     registerProvider: (provider: ProviderPlugin) => void;
+    registerImageGenerationProvider: (provider: ImageGenerationProviderPlugin) => void;
+    registerMusicGenerationProvider: (provider: MusicGenerationProviderPlugin) => void;
+    registerVideoGenerationProvider?: (provider: unknown) => void;
     registerTool: (tool: unknown, opts?: unknown) => void;
     registerHook: (events: string | string[], handler: unknown, opts?: unknown) => void;
     registerHttpRoute: (params: {
