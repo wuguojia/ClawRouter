@@ -77171,9 +77171,12 @@ function estimateImageCost(model, size5, n = 1) {
   const pricePerImage = sizePrice ?? pricing.default;
   return pricePerImage * n * 1.05;
 }
-async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPaymentUsd) {
+async function proxyPaidApiRequest(req, res, apiBase, payFetch, getActualPaymentUsd) {
   const startTime = Date.now();
   const upstreamUrl = `${apiBase}${req.url}`;
+  const isBlockrunExa = req.url?.startsWith("/v1/exa/") ?? false;
+  const isModalSandbox = req.url?.startsWith("/v1/modal/") ?? false;
+  const requestLabel = isBlockrunExa ? "BlockRun Exa" : isModalSandbox ? "Modal Sandbox" : "Partner";
   const bodyChunks = [];
   for await (const chunk of req) {
     bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -77188,7 +77191,7 @@ async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPayment
   }
   if (!headers["content-type"]) headers["content-type"] = "application/json";
   headers["user-agent"] = USER_AGENT;
-  console.log(`[ClawRouter] Partner request: ${req.method} ${req.url}`);
+  console.log(`[ClawRouter] ${requestLabel} request: ${req.method} ${req.url}`);
   const upstream = await payFetch(upstreamUrl, {
     method: req.method ?? "POST",
     headers,
@@ -77208,18 +77211,18 @@ async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPayment
   }
   res.end();
   const latencyMs = Date.now() - startTime;
-  console.log(`[ClawRouter] Partner response: ${upstream.status} (${latencyMs}ms)`);
-  const partnerCost = getActualPaymentUsd();
+  console.log(`[ClawRouter] ${requestLabel} response: ${upstream.status} (${latencyMs}ms)`);
+  const requestCost = getActualPaymentUsd();
   logUsage({
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    model: "partner",
+    model: isBlockrunExa ? "blockrun-exa" : isModalSandbox ? "modal-sandbox" : "partner",
     tier: "PARTNER",
-    cost: partnerCost,
-    baselineCost: partnerCost,
+    cost: requestCost,
+    baselineCost: requestCost,
     savings: 0,
     latencyMs,
     partnerId: (req.url?.split("?")[0] ?? "").replace(/^\/v1\//, "").replace(/\//g, "_") || "unknown",
-    service: "partner"
+    service: isBlockrunExa ? "web_search" : isModalSandbox ? "modal" : "partner"
   }).catch(() => {
   });
 }
@@ -77834,9 +77837,9 @@ async function startProxy(options) {
         }
         return;
       }
-      if (req.url?.match(/^\/v1\/(?:x|partner|pm)\//)) {
+      if (req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal)\//)) {
         try {
-          await proxyPartnerRequest(
+          await proxyPaidApiRequest(
             req,
             res,
             apiBase,
@@ -78144,30 +78147,6 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
       const parsedMessages = Array.isArray(parsed.messages) ? parsed.messages : [];
       const lastUserMsg = [...parsedMessages].reverse().find((m) => m.role === "user");
       hasTools = Array.isArray(parsed.tools) && parsed.tools.length > 0;
-      if (hasTools && parsed.tools) {
-        const OPENCLAW_INTERNAL_TOOLS = /* @__PURE__ */ new Set([
-          "update_plan",
-          "read",
-          "write",
-          "edit",
-          "apply_patch",
-          "exec",
-          "web_search",
-          "web_fetch",
-          "browser",
-          "memory_search"
-        ]);
-        const originalCount = parsed.tools.length;
-        parsed.tools = parsed.tools.filter((t) => !OPENCLAW_INTERNAL_TOOLS.has(t?.function?.name ?? ""));
-        const removed = originalCount - parsed.tools.length;
-        if (removed > 0) {
-          console.log(
-            `[ClawRouter] Filtered ${removed} internal OpenClaw tool${removed > 1 ? "s" : ""} (update_plan, etc.)`
-          );
-          bodyModified = true;
-          hasTools = parsed.tools.length > 0;
-        }
-      }
       const rawLastContent = lastUserMsg?.content;
       const lastContent = typeof rawLastContent === "string" ? rawLastContent : Array.isArray(rawLastContent) ? rawLastContent.filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ") : "";
       if (sessionId && parsedMessages.length > 0) {
@@ -79908,6 +79887,7 @@ function capitalize(str) {
 import { platform, arch, freemem, totalmem } from "os";
 init_accounts();
 init_auth();
+import { existsSync as existsSync2, readFileSync as readFileSync3 } from "fs";
 init_wallet();
 function formatBytes(bytes) {
   const gb = bytes / (1024 * 1024 * 1024);
@@ -80194,8 +80174,31 @@ async function analyzeWithAI(diagnostics, userQuestion, model = "sonnet") {
     const evmSigner = toClientEvmSigner(account, publicClient);
     const x402 = new x402Client();
     registerExactEvmScheme(x402, { signer: evmSigner });
+    const paymentChain = diagnostics.wallet.paymentChain;
+    if (paymentChain === "solana") {
+      try {
+        if (!existsSync2(MNEMONIC_FILE)) {
+          throw new Error(`mnemonic file missing at ${MNEMONIC_FILE}`);
+        }
+        const mnemonic = readFileSync3(MNEMONIC_FILE, "utf8").trim();
+        if (!mnemonic) throw new Error("mnemonic file empty");
+        const { deriveSolanaKeyBytes: deriveSolanaKeyBytes2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
+        const { registerExactSvmScheme: registerExactSvmScheme2 } = await Promise.resolve().then(() => (init_client(), client_exports));
+        const { createKeyPairSignerFromPrivateKeyBytes: createKeyPairSignerFromPrivateKeyBytes2 } = await Promise.resolve().then(() => (init_index_node37(), index_node_exports));
+        const solanaKeyBytes = deriveSolanaKeyBytes2(mnemonic);
+        const solanaSigner = await createKeyPairSignerFromPrivateKeyBytes2(solanaKeyBytes);
+        registerExactSvmScheme2(x402, { signer: solanaSigner });
+      } catch (err) {
+        console.log(
+          `  \u26A0 Could not register Solana signer: ${err instanceof Error ? err.message : String(err)}`
+        );
+        console.log(`  \u26A0 Falling back to Base (EVM) \u2014 doctor request may fail on Solana chain
+`);
+      }
+    }
     const paymentFetch = wrapFetchWithPayment(fetch, x402);
-    const response = await paymentFetch("https://blockrun.ai/api/v1/chat/completions", {
+    const apiUrl = paymentChain === "solana" ? "https://sol.blockrun.ai/api/v1/chat/completions" : "https://blockrun.ai/api/v1/chat/completions";
+    const response = await paymentFetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -80844,13 +80847,13 @@ ClawRouter Partner APIs (v${VERSION})
   if (args.chain) {
     const targetChain = args.chain;
     if (targetChain === "solana") {
-      const { existsSync: existsSync2 } = await import("fs");
+      const { existsSync: existsSync3 } = await import("fs");
       const { MNEMONIC_FILE: MNEMONIC_FILE2, setupSolana: setupSolana2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
       const { deriveSolanaKeyBytes: deriveSolanaKeyBytes2, getSolanaAddress: getSolanaAddress2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
       let solanaAddr;
-      if (existsSync2(MNEMONIC_FILE2)) {
-        const { readFileSync: readFileSync3 } = await import("fs");
-        const mnemonic = readFileSync3(MNEMONIC_FILE2, "utf8").trim();
+      if (existsSync3(MNEMONIC_FILE2)) {
+        const { readFileSync: readFileSync4 } = await import("fs");
+        const mnemonic = readFileSync4(MNEMONIC_FILE2, "utf8").trim();
         const keyBytes = deriveSolanaKeyBytes2(mnemonic);
         solanaAddr = await getSolanaAddress2(keyBytes);
         console.log(`[ClawRouter] Solana wallet already set up.`);

@@ -1360,13 +1360,14 @@ function estimateImageCost(model: string, size?: string, n: number = 1): number 
 }
 
 /**
- * Proxy a partner API request through x402 payment flow.
+ * Proxy a paid BlockRun data request through x402 payment flow.
  *
- * Simplified proxy for partner endpoints (/v1/x/*, /v1/partner/*).
- * No smart routing, SSE, compression, or sessions — just collect body,
- * forward via payFetch (which handles 402 automatically), and stream back.
+ * Used for partner endpoints (/v1/x/*, /v1/partner/*, /v1/pm/*) and
+ * wallet-backed data tools such as BlockRun Exa (/v1/exa/*). No smart routing,
+ * SSE, compression, or sessions — just collect body, forward via payFetch
+ * (which handles 402 automatically), and stream back.
  */
-async function proxyPartnerRequest(
+async function proxyPaidApiRequest(
   req: IncomingMessage,
   res: ServerResponse,
   apiBase: string,
@@ -1375,6 +1376,13 @@ async function proxyPartnerRequest(
 ): Promise<void> {
   const startTime = Date.now();
   const upstreamUrl = `${apiBase}${req.url}`;
+  const isBlockrunExa = req.url?.startsWith("/v1/exa/") ?? false;
+  const isModalSandbox = req.url?.startsWith("/v1/modal/") ?? false;
+  const requestLabel = isBlockrunExa
+    ? "BlockRun Exa"
+    : isModalSandbox
+      ? "Modal Sandbox"
+      : "Partner";
 
   // Collect request body
   const bodyChunks: Buffer[] = [];
@@ -1399,7 +1407,7 @@ async function proxyPartnerRequest(
   if (!headers["content-type"]) headers["content-type"] = "application/json";
   headers["user-agent"] = USER_AGENT;
 
-  console.log(`[ClawRouter] Partner request: ${req.method} ${req.url}`);
+  console.log(`[ClawRouter] ${requestLabel} request: ${req.method} ${req.url}`);
 
   const upstream = await payFetch(upstreamUrl, {
     method: req.method ?? "POST",
@@ -1427,21 +1435,21 @@ async function proxyPartnerRequest(
   res.end();
 
   const latencyMs = Date.now() - startTime;
-  console.log(`[ClawRouter] Partner response: ${upstream.status} (${latencyMs}ms)`);
+  console.log(`[ClawRouter] ${requestLabel} response: ${upstream.status} (${latencyMs}ms)`);
 
-  // Log partner usage with actual x402 payment amount (previously logged cost: 0)
-  const partnerCost = getActualPaymentUsd();
+  // Log paid tool usage with actual x402 payment amount.
+  const requestCost = getActualPaymentUsd();
   logUsage({
     timestamp: new Date().toISOString(),
-    model: "partner",
+    model: isBlockrunExa ? "blockrun-exa" : isModalSandbox ? "modal-sandbox" : "partner",
     tier: "PARTNER",
-    cost: partnerCost,
-    baselineCost: partnerCost,
+    cost: requestCost,
+    baselineCost: requestCost,
     savings: 0,
     latencyMs,
     partnerId:
       (req.url?.split("?")[0] ?? "").replace(/^\/v1\//, "").replace(/\//g, "_") || "unknown",
-    service: "partner",
+    service: isBlockrunExa ? "web_search" : isModalSandbox ? "modal" : "partner",
   }).catch(() => {});
 }
 
@@ -2215,10 +2223,10 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         return;
       }
 
-      // --- Handle partner API paths (/v1/x/*, /v1/partner/*, /v1/pm/*) ---
-      if (req.url?.match(/^\/v1\/(?:x|partner|pm)\//)) {
+      // --- Handle paid API paths (/v1/x/*, /v1/partner/*, /v1/pm/*, /v1/exa/*, /v1/modal/*) ---
+      if (req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal)\//)) {
         try {
-          await proxyPartnerRequest(
+          await proxyPaidApiRequest(
             req,
             res,
             apiBase,
@@ -2683,35 +2691,10 @@ async function proxyRequest(
       // The routing-profile branch may re-assign below (no-op since same value).
       hasTools = Array.isArray(parsed.tools) && (parsed.tools as unknown[]).length > 0;
 
-      // Filter out OpenClaw internal tools that upstream models don't understand.
-      // These are agent-framework tools (update_plan, read, write, etc.) that OpenClaw
-      // injects for its own use — forwarding them causes errors or hallucinated tool_calls.
-      if (hasTools && parsed.tools) {
-        const OPENCLAW_INTERNAL_TOOLS = new Set([
-          "update_plan",
-          "read",
-          "write",
-          "edit",
-          "apply_patch",
-          "exec",
-          "web_search",
-          "web_fetch",
-          "browser",
-          "memory_search",
-        ]);
-        const originalCount = (parsed.tools as unknown[]).length;
-        parsed.tools = (parsed.tools as Array<{ function?: { name?: string } }>).filter(
-          (t) => !OPENCLAW_INTERNAL_TOOLS.has(t?.function?.name ?? ""),
-        );
-        const removed = originalCount - (parsed.tools as unknown[]).length;
-        if (removed > 0) {
-          console.log(
-            `[ClawRouter] Filtered ${removed} internal OpenClaw tool${removed > 1 ? "s" : ""} (update_plan, etc.)`,
-          );
-          bodyModified = true;
-          hasTools = (parsed.tools as unknown[]).length > 0;
-        }
-      }
+      // Preserve OpenClaw tool schemas exactly as provided.
+      // Stripping tools like web_search/web_fetch/browser/exec makes the upstream
+      // model believe those capabilities do not exist, which breaks agentic runs.
+      // Reliability is handled later via agentic routing and tool-support filters.
 
       const rawLastContent = lastUserMsg?.content;
       const lastContent =

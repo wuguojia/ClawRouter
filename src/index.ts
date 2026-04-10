@@ -20,6 +20,7 @@
 import type {
   OpenClawPluginDefinition,
   OpenClawPluginApi,
+  OpenClawConfig,
   PluginCommandContext,
   OpenClawPluginCommandDefinition,
   ImageGenerationProviderPlugin,
@@ -29,6 +30,10 @@ import type {
 } from "./types.js";
 import { blockrunProvider, setActiveProxy } from "./provider.js";
 import { startProxy, getProxyPort } from "./proxy.js";
+import {
+  BLOCKRUN_EXA_PROVIDER_ID,
+  blockrunExaWebSearchProvider,
+} from "./web-search-provider.js";
 import {
   resolveOrGenerateWalletKey,
   setupSolana,
@@ -79,6 +84,17 @@ import { getStats } from "./stats.js";
 import { buildPartnerTools, PARTNER_SERVICES } from "./partners/index.js";
 import { createStatsCommand } from "./commands/stats.js";
 import { createExcludeCommand } from "./commands/exclude.js";
+import {
+  BLOCKRUN_MCP_SERVER_NAME,
+  createBlockrunMcpServerDefinition,
+  ensureBlockrunMcpServerConfig,
+  removeManagedBlockrunMcpServerConfig,
+  type McpServerDefinition,
+} from "./mcp-config.js";
+
+function getPackageRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..");
+}
 
 /**
  * Install ClawRouter skills into OpenClaw's workspace skills directory.
@@ -100,7 +116,7 @@ function installSkillsToWorkspace(logger: {
 }) {
   try {
     // Resolve the package root: dist/index.js -> package root
-    const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+    const packageRoot = getPackageRoot();
     const bundledSkillsDir = join(packageRoot, "skills");
 
     if (!existsSync(bundledSkillsDir)) {
@@ -184,6 +200,31 @@ function isGatewayMode(): boolean {
   return args.includes("gateway");
 }
 
+function resolveBlockrunMcpServerDefinition(): {
+  definition: McpServerDefinition;
+  source: "local" | "npm";
+} {
+  const packageRoot = getPackageRoot();
+  const siblingRepoRoot = join(packageRoot, "..", "blockrun-mcp");
+  const siblingDistEntry = join(siblingRepoRoot, "dist", "index.js");
+
+  if (existsSync(siblingDistEntry)) {
+    return {
+      definition: createBlockrunMcpServerDefinition({
+        localDistPath: siblingDistEntry,
+        cwd: siblingRepoRoot,
+        nodeCommand: process.execPath,
+      }),
+      source: "local",
+    };
+  }
+
+  return {
+    definition: createBlockrunMcpServerDefinition(),
+    source: "npm",
+  };
+}
+
 /**
  * Inject BlockRun models config into OpenClaw config file.
  * This is required because registerProvider() alone doesn't make models available.
@@ -196,11 +237,14 @@ function isGatewayMode(): boolean {
  *
  * This function is called on EVERY plugin load to ensure config is always correct.
  */
-function injectModelsConfig(logger: { info: (msg: string) => void }): void {
+function injectModelsConfig(
+  logger: { info: (msg: string) => void },
+  blockrunMcpServer: McpServerDefinition,
+): void {
   const configDir = join(homedir(), ".openclaw");
   const configPath = join(configDir, "openclaw.json");
 
-  let config: Record<string, unknown> = {};
+  let config: OpenClawConfig = {};
   let needsWrite = false;
 
   // Create config directory if it doesn't exist
@@ -423,6 +467,43 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
     logger.info(`Added ${addedCount} models to allowlist (${TOP_MODELS.length} total)`);
   }
 
+  // Force web_search onto BlockRun Exa so OpenClaw never silently falls back
+  // to a native provider that expects the user's own Exa API key.
+  if (!config.tools || typeof config.tools !== "object" || Array.isArray(config.tools)) {
+    config.tools = {};
+    needsWrite = true;
+  }
+  const tools = config.tools as Record<string, unknown>;
+  if (!tools.web || typeof tools.web !== "object" || Array.isArray(tools.web)) {
+    tools.web = {};
+    needsWrite = true;
+  }
+  const web = tools.web as Record<string, unknown>;
+  if (!web.search || typeof web.search !== "object" || Array.isArray(web.search)) {
+    web.search = {};
+    needsWrite = true;
+  }
+  const search = web.search as Record<string, unknown>;
+  if (search.provider !== BLOCKRUN_EXA_PROVIDER_ID) {
+    search.provider = BLOCKRUN_EXA_PROVIDER_ID;
+    logger.info(`Forced web_search provider to ${BLOCKRUN_EXA_PROVIDER_ID}`);
+    needsWrite = true;
+  }
+  if (search.enabled !== true) {
+    search.enabled = true;
+    needsWrite = true;
+  }
+
+  const mcpResult = ensureBlockrunMcpServerConfig(config, blockrunMcpServer);
+  if (mcpResult.changed) {
+    needsWrite = true;
+    logger.info(
+      mcpResult.status === "added"
+        ? `Injected BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})`
+        : `Updated BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})`,
+    );
+  }
+
   // Write config file if any changes were made
   // Use atomic write (temp file + rename) to prevent partial writes that could
   // corrupt the config and cause other plugins to lose their settings on next load.
@@ -436,6 +517,10 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
       logger.info(`Failed to write config: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+}
+
+function readStringSafe(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 /**
@@ -1199,10 +1284,18 @@ const plugin: OpenClawPluginDefinition = {
     // appear in OpenClaw's /imagine and music generation UIs.
     api.registerImageGenerationProvider(buildImageGenerationProvider());
     api.registerMusicGenerationProvider(buildMusicGenerationProvider());
+    const blockrunMcpServer = resolveBlockrunMcpServerDefinition();
+    if (typeof api.registerWebSearchProvider === "function") {
+      api.registerWebSearchProvider(blockrunExaWebSearchProvider);
+    } else {
+      api.logger.warn(
+        "OpenClaw runtime does not expose registerWebSearchProvider(); blockrun-exa search is unavailable on this version.",
+      );
+    }
 
     // Inject models config into OpenClaw config file
     // This persists the config so models are recognized on restart
-    injectModelsConfig(api.logger);
+    injectModelsConfig(api.logger, blockrunMcpServer.definition);
 
     // Inject dummy auth profiles into agent auth stores
     // OpenClaw's agent system looks for auth even if provider has auth: []
@@ -1223,8 +1316,34 @@ const plugin: OpenClawPluginDefinition = {
       apiKey: "x402-proxy-handles-auth",
       models: OPENCLAW_MODELS,
     };
+    if (!api.config.tools) {
+      api.config.tools = {};
+    }
+    if (!api.config.tools.web) {
+      api.config.tools.web = {};
+    }
+    if (!api.config.tools.web.search) {
+      api.config.tools.web.search = {};
+    }
+    api.config.tools.web.search.provider = BLOCKRUN_EXA_PROVIDER_ID;
+    api.config.tools.web.search.enabled = true;
+    const runtimeMcpResult = ensureBlockrunMcpServerConfig(api.config, blockrunMcpServer.definition);
 
     api.logger.info("BlockRun provider registered (55+ models via x402)");
+    if (typeof api.registerWebSearchProvider === "function") {
+      api.logger.info(`Registered BlockRun web_search provider (${BLOCKRUN_EXA_PROVIDER_ID})`);
+    }
+    if (runtimeMcpResult.status === "added" || runtimeMcpResult.status === "updated") {
+      api.logger.info(
+        blockrunMcpServer.source === "local"
+          ? `Configured BlockRun MCP server (${BLOCKRUN_MCP_SERVER_NAME}) from local blockrun-mcp build`
+          : `Configured BlockRun MCP server (${BLOCKRUN_MCP_SERVER_NAME}) via npx @blockrun/mcp@latest`,
+      );
+    } else if (runtimeMcpResult.status === "preserved") {
+      api.logger.info(
+        `Preserved custom BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})`,
+      );
+    }
 
     // Register partner API tools (Twitter/X lookup, etc.)
     try {
@@ -1424,6 +1543,9 @@ const plugin: OpenClawPluginDefinition = {
           delete config.models.providers.blockrun;
         }
 
+        // Remove managed BlockRun MCP server config, but preserve any user-managed override.
+        removeManagedBlockrunMcpServerConfig(config as OpenClawConfig);
+
         // Remove plugin entries (all case variants)
         for (const key of ["clawrouter", "ClawRouter", "@blockrun/clawrouter"]) {
           if (config.plugins?.entries?.[key]) delete config.plugins.entries[key];
@@ -1447,6 +1569,10 @@ const plugin: OpenClawPluginDefinition = {
         // Reset default model if it's blockrun
         if (config.agents?.defaults?.model?.primary?.startsWith("blockrun/")) {
           delete config.agents.defaults.model.primary;
+        }
+
+        if (config.tools?.web?.search?.provider === BLOCKRUN_EXA_PROVIDER_ID) {
+          delete config.tools.web.search.provider;
         }
 
         // Atomic write

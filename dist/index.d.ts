@@ -30,6 +30,23 @@ type ModelProviderConfig = {
     authHeader?: boolean;
     models: ModelDefinitionConfig[];
 };
+type OpenClawConfig = Record<string, unknown> & {
+    models?: {
+        providers?: Record<string, ModelProviderConfig>;
+    };
+    agents?: Record<string, unknown>;
+    mcp?: {
+        servers?: Record<string, unknown>;
+    };
+    tools?: {
+        web?: {
+            search?: Record<string, unknown> & {
+                provider?: string;
+                enabled?: boolean;
+            };
+        };
+    };
+};
 type AuthProfileCredential = {
     apiKey?: string;
     type?: string;
@@ -201,24 +218,52 @@ type MusicGenerationProviderPlugin = {
     }) => boolean;
     generateMusic: (req: MusicGenerationRequest) => Promise<MusicGenerationResult>;
 };
+type WebSearchProviderToolDefinition = {
+    description: string;
+    parameters: unknown;
+    execute: (args: Record<string, unknown>) => Promise<unknown> | unknown;
+};
+type WebSearchProviderContext = {
+    config: OpenClawConfig;
+    searchConfig?: Record<string, unknown>;
+    runtimeMetadata?: Record<string, unknown>;
+};
+type WebSearchProviderPlugin = {
+    id: string;
+    label: string;
+    hint: string;
+    onboardingScopes?: Array<"text-inference">;
+    requiresCredential?: boolean;
+    credentialLabel?: string;
+    envVars: string[];
+    placeholder: string;
+    signupUrl: string;
+    docsUrl?: string;
+    autoDetectOrder?: number;
+    credentialPath: string;
+    inactiveSecretPaths?: string[];
+    getCredentialValue: (searchConfig?: Record<string, unknown>) => unknown;
+    setCredentialValue: (searchConfigTarget: Record<string, unknown>, value: unknown) => void;
+    getConfiguredCredentialValue?: (config?: OpenClawConfig) => unknown;
+    setConfiguredCredentialValue?: (configTarget: OpenClawConfig, value: unknown) => void;
+    applySelectionConfig?: (config: OpenClawConfig) => OpenClawConfig;
+    resolveRuntimeMetadata?: (ctx: Record<string, unknown>) => unknown;
+    createTool: (ctx: WebSearchProviderContext) => WebSearchProviderToolDefinition | null;
+};
 type OpenClawPluginApi = {
     id: string;
     name: string;
     version?: string;
     description?: string;
     source: string;
-    config: Record<string, unknown> & {
-        models?: {
-            providers?: Record<string, ModelProviderConfig>;
-        };
-        agents?: Record<string, unknown>;
-    };
+    config: OpenClawConfig;
     pluginConfig?: Record<string, unknown>;
     logger: PluginLogger;
     registerProvider: (provider: ProviderPlugin) => void;
     registerImageGenerationProvider: (provider: ImageGenerationProviderPlugin) => void;
     registerMusicGenerationProvider: (provider: MusicGenerationProviderPlugin) => void;
     registerVideoGenerationProvider?: (provider: unknown) => void;
+    registerWebSearchProvider?: (provider: WebSearchProviderPlugin) => void;
     registerTool: (tool: unknown, opts?: unknown) => void;
     registerHook: (events: string | string[], handler: unknown, opts?: unknown) => void;
     registerHttpRoute: (params: {

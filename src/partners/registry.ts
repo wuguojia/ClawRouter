@@ -79,7 +79,6 @@ export const PARTNER_SERVICES: PartnerServiceDefinition[] = [
       description: "Look up 3 Twitter/X user profiles",
     },
   },
-
   // ---------------------------------------------------------------------------
   // Predexon — Prediction Market Data
   // ---------------------------------------------------------------------------

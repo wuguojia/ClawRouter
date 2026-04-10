@@ -77099,9 +77099,12 @@ function estimateImageCost(model, size5, n = 1) {
   const pricePerImage = sizePrice ?? pricing.default;
   return pricePerImage * n * 1.05;
 }
-async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPaymentUsd) {
+async function proxyPaidApiRequest(req, res, apiBase, payFetch, getActualPaymentUsd) {
   const startTime = Date.now();
   const upstreamUrl = `${apiBase}${req.url}`;
+  const isBlockrunExa = req.url?.startsWith("/v1/exa/") ?? false;
+  const isModalSandbox = req.url?.startsWith("/v1/modal/") ?? false;
+  const requestLabel = isBlockrunExa ? "BlockRun Exa" : isModalSandbox ? "Modal Sandbox" : "Partner";
   const bodyChunks = [];
   for await (const chunk of req) {
     bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -77116,7 +77119,7 @@ async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPayment
   }
   if (!headers["content-type"]) headers["content-type"] = "application/json";
   headers["user-agent"] = USER_AGENT;
-  console.log(`[ClawRouter] Partner request: ${req.method} ${req.url}`);
+  console.log(`[ClawRouter] ${requestLabel} request: ${req.method} ${req.url}`);
   const upstream = await payFetch(upstreamUrl, {
     method: req.method ?? "POST",
     headers,
@@ -77136,18 +77139,18 @@ async function proxyPartnerRequest(req, res, apiBase, payFetch, getActualPayment
   }
   res.end();
   const latencyMs = Date.now() - startTime;
-  console.log(`[ClawRouter] Partner response: ${upstream.status} (${latencyMs}ms)`);
-  const partnerCost = getActualPaymentUsd();
+  console.log(`[ClawRouter] ${requestLabel} response: ${upstream.status} (${latencyMs}ms)`);
+  const requestCost = getActualPaymentUsd();
   logUsage({
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    model: "partner",
+    model: isBlockrunExa ? "blockrun-exa" : isModalSandbox ? "modal-sandbox" : "partner",
     tier: "PARTNER",
-    cost: partnerCost,
-    baselineCost: partnerCost,
+    cost: requestCost,
+    baselineCost: requestCost,
     savings: 0,
     latencyMs,
     partnerId: (req.url?.split("?")[0] ?? "").replace(/^\/v1\//, "").replace(/\//g, "_") || "unknown",
-    service: "partner"
+    service: isBlockrunExa ? "web_search" : isModalSandbox ? "modal" : "partner"
   }).catch(() => {
   });
 }
@@ -77762,9 +77765,9 @@ async function startProxy(options) {
         }
         return;
       }
-      if (req.url?.match(/^\/v1\/(?:x|partner|pm)\//)) {
+      if (req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal)\//)) {
         try {
-          await proxyPartnerRequest(
+          await proxyPaidApiRequest(
             req,
             res,
             apiBase,
@@ -78072,30 +78075,6 @@ async function proxyRequest(req, res, apiBase, payFetch, options, routerOpts, de
       const parsedMessages = Array.isArray(parsed.messages) ? parsed.messages : [];
       const lastUserMsg = [...parsedMessages].reverse().find((m) => m.role === "user");
       hasTools = Array.isArray(parsed.tools) && parsed.tools.length > 0;
-      if (hasTools && parsed.tools) {
-        const OPENCLAW_INTERNAL_TOOLS = /* @__PURE__ */ new Set([
-          "update_plan",
-          "read",
-          "write",
-          "edit",
-          "apply_patch",
-          "exec",
-          "web_search",
-          "web_fetch",
-          "browser",
-          "memory_search"
-        ]);
-        const originalCount = parsed.tools.length;
-        parsed.tools = parsed.tools.filter((t) => !OPENCLAW_INTERNAL_TOOLS.has(t?.function?.name ?? ""));
-        const removed = originalCount - parsed.tools.length;
-        if (removed > 0) {
-          console.log(
-            `[ClawRouter] Filtered ${removed} internal OpenClaw tool${removed > 1 ? "s" : ""} (update_plan, etc.)`
-          );
-          bodyModified = true;
-          hasTools = parsed.tools.length > 0;
-        }
-      }
       const rawLastContent = lastUserMsg?.content;
       const lastContent = typeof rawLastContent === "string" ? rawLastContent : Array.isArray(rawLastContent) ? rawLastContent.filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ") : "";
       if (sessionId && parsedMessages.length > 0) {
@@ -79794,6 +79773,9 @@ var activeProxy = null;
 function setActiveProxy(proxy) {
   activeProxy = proxy;
 }
+function getActiveProxy() {
+  return activeProxy;
+}
 var blockrunProvider = {
   id: "blockrun",
   label: "BlockRun",
@@ -79814,6 +79796,230 @@ var blockrunProvider = {
   // The proxy auto-generates a wallet on first run and stores it at
   // ~/.openclaw/blockrun/wallet.key. Users just fund that wallet with USDC.
   auth: []
+};
+
+// src/web-search-provider.ts
+var BLOCKRUN_EXA_PROVIDER_ID = "blockrun-exa";
+var BLOCKRUN_EXA_SEARCH_PATH = "/v1/exa/search";
+var BLOCKRUN_EXA_DOCS_URL = "https://blockrun.ai";
+var DEFAULT_RESULT_COUNT = 5;
+var MAX_RESULT_COUNT = 20;
+function getProxyBaseUrl() {
+  return getActiveProxy()?.baseUrl ?? `http://127.0.0.1:${getProxyPort()}`;
+}
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function readString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function readStringList(value) {
+  if (Array.isArray(value)) {
+    const items2 = value.map(readString).filter((item) => Boolean(item));
+    return items2.length > 0 ? items2 : void 0;
+  }
+  const single = readString(value);
+  if (!single) return void 0;
+  const items = single.split(",").map((item) => item.trim()).filter(Boolean);
+  return items.length > 0 ? items : void 0;
+}
+function readPositiveInteger(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return void 0;
+}
+function errorPayload(error, message) {
+  return {
+    error,
+    message,
+    docs: BLOCKRUN_EXA_DOCS_URL
+  };
+}
+function resolveSiteName(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "") || void 0;
+  } catch {
+    return void 0;
+  }
+}
+function readResultString(entry, keys) {
+  for (const key of keys) {
+    const value = readString(entry[key]);
+    if (value) return value;
+  }
+  return void 0;
+}
+function resolveDescription(entry) {
+  const summary = readResultString(entry, ["summary", "description", "snippet", "excerpt"]);
+  if (summary) return summary;
+  const highlights = entry.highlights;
+  if (Array.isArray(highlights)) {
+    const text = highlights.map(readString).filter((item) => Boolean(item)).join("\n");
+    if (text) return text;
+  }
+  return readResultString(entry, ["text", "content"]) ?? "";
+}
+function extractResults(payload) {
+  if (Array.isArray(payload)) {
+    return payload.map(asObject).filter((entry) => Boolean(entry));
+  }
+  const direct = asObject(payload);
+  if (!direct) return [];
+  const candidates = [direct.results, asObject(direct.data)?.results, asObject(direct.response)?.results];
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+    return candidate.map(asObject).filter((entry) => Boolean(entry));
+  }
+  return [];
+}
+function normalizeBlockRunExaPayload(query, payload) {
+  const results = extractResults(payload);
+  return {
+    query,
+    provider: BLOCKRUN_EXA_PROVIDER_ID,
+    count: results.length,
+    externalContent: {
+      untrusted: true,
+      source: "web_search",
+      provider: BLOCKRUN_EXA_PROVIDER_ID
+    },
+    results: results.map((entry) => {
+      const title = readResultString(entry, ["title", "name"]) ?? "";
+      const url = readResultString(entry, ["url", "uri", "link"]) ?? "";
+      const summary = readResultString(entry, ["summary"]);
+      const published = readResultString(entry, [
+        "publishedDate",
+        "published",
+        "published_at",
+        "date"
+      ]);
+      return {
+        title,
+        url,
+        description: resolveDescription(entry),
+        ...published ? { published } : {},
+        ...summary ? { summary } : {},
+        ...url ? { siteName: resolveSiteName(url) } : {}
+      };
+    })
+  };
+}
+function ensureBlockrunExaSelection(config) {
+  if (!config.tools || typeof config.tools !== "object" || Array.isArray(config.tools)) {
+    config.tools = {};
+  }
+  const tools = config.tools;
+  if (!tools.web || typeof tools.web !== "object" || Array.isArray(tools.web)) {
+    tools.web = {};
+  }
+  const web = tools.web;
+  if (!web.search || typeof web.search !== "object" || Array.isArray(web.search)) {
+    web.search = {};
+  }
+  const search = web.search;
+  search.provider = BLOCKRUN_EXA_PROVIDER_ID;
+  search.enabled = true;
+  return config;
+}
+async function runBlockrunExaSearch(args) {
+  const query = readString(args.query);
+  if (!query) {
+    return errorPayload("missing_query", "web_search (blockrun-exa) requires a non-empty query.");
+  }
+  const count = Math.min(
+    readPositiveInteger(args.count) ?? DEFAULT_RESULT_COUNT,
+    MAX_RESULT_COUNT
+  );
+  const category = readString(args.category);
+  const includeDomains = readStringList(args.include_domains) ?? readStringList(args.includeDomains) ?? readStringList(args.domains);
+  const excludeDomains = readStringList(args.exclude_domains) ?? readStringList(args.excludeDomains);
+  const requestBody = {
+    query,
+    numResults: count
+  };
+  if (category) requestBody.category = category;
+  if (includeDomains) requestBody.includeDomains = includeDomains;
+  if (excludeDomains) requestBody.excludeDomains = excludeDomains;
+  try {
+    const response = await fetch(`${getProxyBaseUrl()}${BLOCKRUN_EXA_SEARCH_PATH}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
+    });
+    if (!response.ok) {
+      const details = await response.text().catch(() => "");
+      return errorPayload(
+        "blockrun_exa_error",
+        `BlockRun Exa search failed (${response.status}): ${details || response.statusText}`
+      );
+    }
+    const payload = await response.json();
+    return normalizeBlockRunExaPayload(query, payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorPayload("blockrun_exa_unavailable", `BlockRun Exa search failed: ${message}`);
+  }
+}
+var blockrunExaWebSearchProvider = {
+  id: BLOCKRUN_EXA_PROVIDER_ID,
+  label: "BlockRun Exa Search",
+  hint: "Neural web search paid through your ClawRouter wallet",
+  onboardingScopes: ["text-inference"],
+  requiresCredential: false,
+  envVars: [],
+  placeholder: "(uses ClawRouter wallet)",
+  signupUrl: "https://blockrun.ai",
+  docsUrl: BLOCKRUN_EXA_DOCS_URL,
+  autoDetectOrder: 5,
+  credentialPath: "",
+  inactiveSecretPaths: [],
+  getCredentialValue: () => void 0,
+  setCredentialValue: () => {
+  },
+  applySelectionConfig: ensureBlockrunExaSelection,
+  createTool: () => ({
+    description: "Search the web through BlockRun's Exa backend. Uses your ClawRouter wallet for x402 micropayments, so no Exa API key is required.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        query: {
+          type: "string",
+          description: "Natural-language search query."
+        },
+        count: {
+          type: "integer",
+          minimum: 1,
+          maximum: MAX_RESULT_COUNT,
+          description: `Number of results to return (1-${MAX_RESULT_COUNT}).`
+        },
+        category: {
+          type: "string",
+          description: "Optional Exa category filter such as news, company, github, pdf, or research paper."
+        },
+        domains: {
+          type: "array",
+          items: { type: "string" },
+          description: "Only search within these domains."
+        },
+        include_domains: {
+          type: "array",
+          items: { type: "string" },
+          description: "Alias for domains."
+        },
+        exclude_domains: {
+          type: "array",
+          items: { type: "string" },
+          description: "Exclude these domains from results."
+        }
+      },
+      required: ["query"]
+    },
+    execute: runBlockrunExaSearch
+  })
 };
 
 // src/index.ts
@@ -80249,6 +80455,121 @@ Usage:
   };
 }
 
+// src/mcp-config.ts
+var BLOCKRUN_MCP_SERVER_NAME = "blockrun";
+var BLOCKRUN_MCP_NPM_SPEC = "@blockrun/mcp@latest";
+var BLOCKRUN_MCP_DEFAULT_TIMEOUT_MS = 3e4;
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isStringArray(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+function normalizeStringRecord(value) {
+  if (!isRecord(value)) return void 0;
+  const entries = Object.entries(value).filter((entry) => {
+    return typeof entry[1] === "string";
+  });
+  if (entries.length === 0) return void 0;
+  entries.sort(([a], [b]) => a.localeCompare(b));
+  return Object.fromEntries(entries);
+}
+function normalizeServerDefinition(server) {
+  const normalized = {};
+  for (const key of ["command", "url", "transport", "cwd", "connectionTimeoutMs"]) {
+    const value = server[key];
+    if (value !== void 0) normalized[key] = value;
+  }
+  if (isStringArray(server.args)) {
+    normalized.args = [...server.args];
+  }
+  const env = normalizeStringRecord(server.env);
+  if (env) normalized.env = env;
+  const headers = normalizeStringRecord(server.headers);
+  if (headers) normalized.headers = headers;
+  return normalized;
+}
+function looksLikeBlockrunPackageArgs(args) {
+  return args.some((arg) => arg.startsWith("@blockrun/mcp"));
+}
+function looksLikeLocalBlockrunDistArgs(args) {
+  return args.some((arg) => arg.replaceAll("\\", "/").endsWith("/blockrun-mcp/dist/index.js"));
+}
+function createBlockrunMcpServerDefinition(opts) {
+  const connectionTimeoutMs = opts?.connectionTimeoutMs ?? BLOCKRUN_MCP_DEFAULT_TIMEOUT_MS;
+  if (opts?.localDistPath) {
+    return {
+      command: opts.nodeCommand ?? process.execPath,
+      args: [opts.localDistPath],
+      cwd: opts.cwd,
+      connectionTimeoutMs
+    };
+  }
+  return {
+    command: "npx",
+    args: ["-y", BLOCKRUN_MCP_NPM_SPEC],
+    connectionTimeoutMs
+  };
+}
+function isManagedBlockrunMcpServerDefinition(value) {
+  if (!isRecord(value)) return false;
+  const args = isStringArray(value.args) ? value.args : [];
+  if (typeof value.command === "string" && value.command === "npx") {
+    return looksLikeBlockrunPackageArgs(args);
+  }
+  return looksLikeLocalBlockrunDistArgs(args);
+}
+function ensureBlockrunMcpServerConfig(config, desiredServer) {
+  if (!config.mcp || typeof config.mcp !== "object" || Array.isArray(config.mcp)) {
+    config.mcp = {};
+  }
+  const mcp = config.mcp;
+  if (!mcp.servers || typeof mcp.servers !== "object" || Array.isArray(mcp.servers)) {
+    mcp.servers = {};
+  }
+  const servers = mcp.servers;
+  const existing = servers[BLOCKRUN_MCP_SERVER_NAME];
+  if (!existing) {
+    servers[BLOCKRUN_MCP_SERVER_NAME] = desiredServer;
+    return { changed: true, status: "added" };
+  }
+  if (!isRecord(existing)) {
+    servers[BLOCKRUN_MCP_SERVER_NAME] = desiredServer;
+    return { changed: true, status: "updated" };
+  }
+  if (!isManagedBlockrunMcpServerDefinition(existing)) {
+    return { changed: false, status: "preserved" };
+  }
+  const existingNormalized = JSON.stringify(normalizeServerDefinition(existing));
+  const desiredNormalized = JSON.stringify(normalizeServerDefinition(desiredServer));
+  if (existingNormalized === desiredNormalized) {
+    return { changed: false, status: "unchanged" };
+  }
+  servers[BLOCKRUN_MCP_SERVER_NAME] = desiredServer;
+  return { changed: true, status: "updated" };
+}
+function removeManagedBlockrunMcpServerConfig(config) {
+  if (!config.mcp || typeof config.mcp !== "object" || Array.isArray(config.mcp)) {
+    return false;
+  }
+  const mcp = config.mcp;
+  if (!mcp.servers || typeof mcp.servers !== "object" || Array.isArray(mcp.servers)) {
+    return false;
+  }
+  const servers = mcp.servers;
+  if (!isManagedBlockrunMcpServerDefinition(servers[BLOCKRUN_MCP_SERVER_NAME])) {
+    return false;
+  }
+  delete servers[BLOCKRUN_MCP_SERVER_NAME];
+  if (Object.keys(servers).length === 0) {
+    delete mcp.servers;
+  }
+  if (Object.keys(mcp).length === 0) {
+    delete config.mcp;
+  }
+  return true;
+}
+
 // src/index.ts
 init_solana_balance();
 
@@ -80572,9 +80893,12 @@ async function waitForProxyHealth(port, timeoutMs = 3e3) {
   }
   return false;
 }
+function getPackageRoot() {
+  return join10(dirname3(fileURLToPath2(import.meta.url)), "..");
+}
 function installSkillsToWorkspace(logger) {
   try {
-    const packageRoot = join10(dirname3(fileURLToPath2(import.meta.url)), "..");
+    const packageRoot = getPackageRoot();
     const bundledSkillsDir = join10(packageRoot, "skills");
     if (!existsSync3(bundledSkillsDir)) {
       return;
@@ -80624,7 +80948,26 @@ function isGatewayMode() {
   const args = process.argv;
   return args.includes("gateway");
 }
-function injectModelsConfig(logger) {
+function resolveBlockrunMcpServerDefinition() {
+  const packageRoot = getPackageRoot();
+  const siblingRepoRoot = join10(packageRoot, "..", "blockrun-mcp");
+  const siblingDistEntry = join10(siblingRepoRoot, "dist", "index.js");
+  if (existsSync3(siblingDistEntry)) {
+    return {
+      definition: createBlockrunMcpServerDefinition({
+        localDistPath: siblingDistEntry,
+        cwd: siblingRepoRoot,
+        nodeCommand: process.execPath
+      }),
+      source: "local"
+    };
+  }
+  return {
+    definition: createBlockrunMcpServerDefinition(),
+    source: "npm"
+  };
+}
+function injectModelsConfig(logger, blockrunMcpServer) {
   const configDir = join10(homedir7(), ".openclaw");
   const configPath = join10(configDir, "openclaw.json");
   let config = {};
@@ -80804,6 +81147,37 @@ function injectModelsConfig(logger) {
   if (addedCount > 0) {
     needsWrite = true;
     logger.info(`Added ${addedCount} models to allowlist (${TOP_MODELS.length} total)`);
+  }
+  if (!config.tools || typeof config.tools !== "object" || Array.isArray(config.tools)) {
+    config.tools = {};
+    needsWrite = true;
+  }
+  const tools = config.tools;
+  if (!tools.web || typeof tools.web !== "object" || Array.isArray(tools.web)) {
+    tools.web = {};
+    needsWrite = true;
+  }
+  const web = tools.web;
+  if (!web.search || typeof web.search !== "object" || Array.isArray(web.search)) {
+    web.search = {};
+    needsWrite = true;
+  }
+  const search = web.search;
+  if (search.provider !== BLOCKRUN_EXA_PROVIDER_ID) {
+    search.provider = BLOCKRUN_EXA_PROVIDER_ID;
+    logger.info(`Forced web_search provider to ${BLOCKRUN_EXA_PROVIDER_ID}`);
+    needsWrite = true;
+  }
+  if (search.enabled !== true) {
+    search.enabled = true;
+    needsWrite = true;
+  }
+  const mcpResult = ensureBlockrunMcpServerConfig(config, blockrunMcpServer);
+  if (mcpResult.changed) {
+    needsWrite = true;
+    logger.info(
+      mcpResult.status === "added" ? `Injected BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})` : `Updated BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})`
+    );
   }
   if (needsWrite) {
     try {
@@ -81392,7 +81766,15 @@ var plugin = {
     api.registerProvider(blockrunProvider);
     api.registerImageGenerationProvider(buildImageGenerationProvider());
     api.registerMusicGenerationProvider(buildMusicGenerationProvider());
-    injectModelsConfig(api.logger);
+    const blockrunMcpServer = resolveBlockrunMcpServerDefinition();
+    if (typeof api.registerWebSearchProvider === "function") {
+      api.registerWebSearchProvider(blockrunExaWebSearchProvider);
+    } else {
+      api.logger.warn(
+        "OpenClaw runtime does not expose registerWebSearchProvider(); blockrun-exa search is unavailable on this version."
+      );
+    }
+    injectModelsConfig(api.logger, blockrunMcpServer.definition);
     injectAuthProfile(api.logger);
     const runtimePort = getProxyPort();
     if (!api.config.models) {
@@ -81408,7 +81790,31 @@ var plugin = {
       apiKey: "x402-proxy-handles-auth",
       models: OPENCLAW_MODELS
     };
+    if (!api.config.tools) {
+      api.config.tools = {};
+    }
+    if (!api.config.tools.web) {
+      api.config.tools.web = {};
+    }
+    if (!api.config.tools.web.search) {
+      api.config.tools.web.search = {};
+    }
+    api.config.tools.web.search.provider = BLOCKRUN_EXA_PROVIDER_ID;
+    api.config.tools.web.search.enabled = true;
+    const runtimeMcpResult = ensureBlockrunMcpServerConfig(api.config, blockrunMcpServer.definition);
     api.logger.info("BlockRun provider registered (55+ models via x402)");
+    if (typeof api.registerWebSearchProvider === "function") {
+      api.logger.info(`Registered BlockRun web_search provider (${BLOCKRUN_EXA_PROVIDER_ID})`);
+    }
+    if (runtimeMcpResult.status === "added" || runtimeMcpResult.status === "updated") {
+      api.logger.info(
+        blockrunMcpServer.source === "local" ? `Configured BlockRun MCP server (${BLOCKRUN_MCP_SERVER_NAME}) from local blockrun-mcp build` : `Configured BlockRun MCP server (${BLOCKRUN_MCP_SERVER_NAME}) via npx @blockrun/mcp@latest`
+      );
+    } else if (runtimeMcpResult.status === "preserved") {
+      api.logger.info(
+        `Preserved custom BlockRun MCP server config (${BLOCKRUN_MCP_SERVER_NAME})`
+      );
+    }
     try {
       const proxyBaseUrl = `http://127.0.0.1:${runtimePort}`;
       const partnerTools = buildPartnerTools(proxyBaseUrl);
@@ -81559,6 +81965,7 @@ var plugin = {
         if (config.models?.providers?.blockrun) {
           delete config.models.providers.blockrun;
         }
+        removeManagedBlockrunMcpServerConfig(config);
         for (const key of ["clawrouter", "ClawRouter", "@blockrun/clawrouter"]) {
           if (config.plugins?.entries?.[key]) delete config.plugins.entries[key];
           if (config.plugins?.installs?.[key]) delete config.plugins.installs[key];
@@ -81575,6 +81982,9 @@ var plugin = {
         }
         if (config.agents?.defaults?.model?.primary?.startsWith("blockrun/")) {
           delete config.agents.defaults.model.primary;
+        }
+        if (config.tools?.web?.search?.provider === BLOCKRUN_EXA_PROVIDER_ID) {
+          delete config.tools.web.search.provider;
         }
         const tmpPath = `${configPath}.tmp.${process.pid}`;
         writeFileSync3(tmpPath, JSON.stringify(config, null, 2));
