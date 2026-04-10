@@ -99,13 +99,27 @@ export class RulesStrategy implements RouterStrategy {
       profileSuffix = " | premium";
       profile = "premium";
     } else {
-      // Auto profile (or undefined): intelligent routing with agentic detection
+      // Auto profile (or undefined): intelligent routing with agentic detection.
+      //
+      // `agenticMode` semantics:
+      //   - `true`  → force agentic tiers (ignore heuristics)
+      //   - `false` → disable agentic tiers entirely (even if tools are present)
+      //   - `undefined` → auto-detect via heuristics (tools present OR high agenticScore)
       const agenticScore = ruleResult.agenticScore ?? 0;
       const isAutoAgentic = agenticScore >= 0.5;
-      const isExplicitAgentic = config.overrides.agenticMode ?? false;
+      const agenticModeSetting = config.overrides.agenticMode;
       const hasToolsInRequest = options.hasTools ?? false;
-      const useAgenticTiers =
-        (hasToolsInRequest || isAutoAgentic || isExplicitAgentic) && config.agenticTiers != null;
+      let useAgenticTiers: boolean;
+      if (agenticModeSetting === false) {
+        // Explicitly disabled — never use agentic tiers
+        useAgenticTiers = false;
+      } else if (agenticModeSetting === true) {
+        // Explicitly enabled — use agentic tiers if available
+        useAgenticTiers = config.agenticTiers != null;
+      } else {
+        // Auto-detect
+        useAgenticTiers = (hasToolsInRequest || isAutoAgentic) && config.agenticTiers != null;
+      }
       tierConfigs = useAgenticTiers ? config.agenticTiers! : config.tiers;
       profileSuffix = useAgenticTiers ? ` | agentic${hasToolsInRequest ? " (tools)" : ""}` : "";
       profile = useAgenticTiers ? "agentic" : "auto";

@@ -97,6 +97,42 @@ describe("RulesStrategy", () => {
     expect(decision.profile).toBe("auto");
     expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.tiers);
   });
+
+  it("does NOT use agentic tiers when overrides.agenticMode is false (even with tools)", () => {
+    // Regression test for #148: agenticMode: false should disable agentic tier
+    // selection entirely, even when the request includes tools.
+    const strategy = new RulesStrategy();
+    const config = {
+      ...DEFAULT_ROUTING_CONFIG,
+      overrides: { ...DEFAULT_ROUTING_CONFIG.overrides, agenticMode: false },
+    };
+    const decision = strategy.route("hello", undefined, 100, {
+      ...baseOptions,
+      config,
+      hasTools: true,
+      now: new Date("2025-01-01"),
+    });
+
+    expect(decision.profile).toBe("auto");
+    expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.tiers);
+  });
+
+  it("forces agentic tiers when overrides.agenticMode is true (even without tools)", () => {
+    const strategy = new RulesStrategy();
+    const config = {
+      ...DEFAULT_ROUTING_CONFIG,
+      overrides: { ...DEFAULT_ROUTING_CONFIG.overrides, agenticMode: true },
+    };
+    const decision = strategy.route("hello", undefined, 100, {
+      ...baseOptions,
+      config,
+      hasTools: false,
+      now: new Date("2025-01-01"),
+    });
+
+    expect(decision.profile).toBe("agentic");
+    expect(decision.tierConfigs).toEqual(DEFAULT_ROUTING_CONFIG.agenticTiers);
+  });
 });
 
 describe("Strategy Registry", () => {

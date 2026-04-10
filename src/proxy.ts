@@ -1286,12 +1286,28 @@ export function buildProxyModelList(
  */
 function mergeRoutingConfig(overrides?: Partial<RoutingConfig>): RoutingConfig {
   if (!overrides) return DEFAULT_ROUTING_CONFIG;
+  // Merge tier sets per-tier so users can override a single tier
+  // (e.g. just COMPLEX) without having to redefine all four.
+  // `null` explicitly disables a tier set (e.g. `agenticTiers: null` forces
+  // all requests through regular tiers even when tools are present).
+  const mergeTiers = (
+    defaults: RoutingConfig["tiers"] | null | undefined,
+    user: Partial<RoutingConfig["tiers"]> | null | undefined,
+  ): RoutingConfig["tiers"] | null => {
+    if (user === null) return null;
+    if (user === undefined) return defaults ?? null;
+    return { ...(defaults ?? {}), ...user } as RoutingConfig["tiers"];
+  };
   return {
     ...DEFAULT_ROUTING_CONFIG,
     ...overrides,
     classifier: { ...DEFAULT_ROUTING_CONFIG.classifier, ...overrides.classifier },
     scoring: { ...DEFAULT_ROUTING_CONFIG.scoring, ...overrides.scoring },
-    tiers: { ...DEFAULT_ROUTING_CONFIG.tiers, ...overrides.tiers },
+    tiers:
+      mergeTiers(DEFAULT_ROUTING_CONFIG.tiers, overrides.tiers) ?? DEFAULT_ROUTING_CONFIG.tiers,
+    agenticTiers: mergeTiers(DEFAULT_ROUTING_CONFIG.agenticTiers, overrides.agenticTiers),
+    ecoTiers: mergeTiers(DEFAULT_ROUTING_CONFIG.ecoTiers, overrides.ecoTiers),
+    premiumTiers: mergeTiers(DEFAULT_ROUTING_CONFIG.premiumTiers, overrides.premiumTiers),
     overrides: { ...DEFAULT_ROUTING_CONFIG.overrides, ...overrides.overrides },
   };
 }

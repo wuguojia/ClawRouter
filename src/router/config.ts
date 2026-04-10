@@ -1226,6 +1226,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     maxTokensForceComplex: 100_000,
     structuredOutputMinTier: "MEDIUM",
     ambiguousDefaultTier: "MEDIUM",
-    agenticMode: false,
+    // agenticMode left undefined → auto-detect via tools/agenticScore.
+    // Set to `true` to force agentic tiers; `false` to disable them entirely.
   },
 };
