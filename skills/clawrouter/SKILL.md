@@ -2,18 +2,56 @@
 name: clawrouter
 description: Smart LLM router — save 67% on inference costs. Routes every request to the cheapest capable model across 55+ models from OpenAI, Anthropic, Google, DeepSeek, xAI, NVIDIA, and more. 11 free NVIDIA models included.
 homepage: https://blockrun.ai/clawrouter.md
-metadata: { "openclaw": { "emoji": "🦀", "requires": { "config": ["models.providers.blockrun"] } } }
+repository: https://github.com/BlockRunAI/ClawRouter
+license: MIT
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🦀",
+        "requires": { "config": ["models.providers.blockrun"] },
+        "install":
+          [
+            {
+              "id": "node",
+              "kind": "node",
+              "package": "@blockrun/clawrouter",
+              "bins": ["clawrouter"],
+              "label": "Install ClawRouter (npm)",
+            },
+          ],
+      },
+  }
 ---
 
 # ClawRouter
 
 Smart LLM router that saves 67% on inference costs by routing each request to the cheapest model that can handle it. 55+ models across 9 providers (11 free NVIDIA models), all through one wallet.
 
+Source: https://github.com/BlockRunAI/ClawRouter · npm: https://www.npmjs.com/package/@blockrun/clawrouter · License: MIT.
+
+## Credentials & Data Handling
+
+ClawRouter runs locally as an x402 proxy. It does **not** collect or forward third-party provider API keys. You do not supply OpenAI, Anthropic, Google, DeepSeek, xAI, or NVIDIA credentials — the blockrun.ai gateway owns those relationships and routes on the server side.
+
+**What `models.providers.blockrun` stores (fully enumerated):**
+
+| Field | Sensitive | Purpose |
+|-------|-----------|---------|
+| `walletKey` | Yes | EVM private key used to sign USDC micropayments via x402. **Auto-generated locally on first run** — no user input required. Never transmitted; only signatures are sent. |
+| `solanaKey` | Yes | Solana keypair (BIP-44 `m/44'/501'/0'/0'`) for Solana-chain payments. Auto-derived from the same local mnemonic. |
+| `gateway` | No | Gateway URL. Defaults: `https://blockrun.ai/api` (Base) · `https://sol.blockrun.ai/api` (Solana). |
+| `routing` | No | Optional override of the default four-tier router. |
+
+No other credentials are read, required, or exfiltrated. The wallet key stays on disk under the OpenClaw config directory and is used only to produce x402 payment signatures.
+
 ## Install
 
 ```bash
 openclaw plugins install @blockrun/clawrouter
 ```
+
+The structured `install` block above tells OpenClaw to install the auditable npm package `@blockrun/clawrouter`. Source for every version is on GitHub; every release is tagged.
 
 ## Setup
 

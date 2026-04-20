@@ -4,6 +4,12 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.157 — Apr 20, 2026
+
+- **SKILL.md credential transparency** — rewrote `skills/clawrouter/SKILL.md` to clear the OpenClaw scanner's medium-confidence suspicious verdict on clawhub.ai. Frontmatter now declares `repository: https://github.com/BlockRunAI/ClawRouter`, `license: MIT`, and a structured `metadata.openclaw.install` array (`kind: node`, `package: @blockrun/clawrouter`, `bins: [clawrouter]`) so the registry entry has an auditable install artifact instead of a bare bash block. Body adds a **Credentials & Data Handling** section fully enumerating what `models.providers.blockrun` stores (`walletKey` / `solanaKey` — auto-generated locally, never transmitted; `gateway` / `routing` — non-sensitive), and explicitly states the plugin does not collect or forward third-party provider API keys (OpenAI/Anthropic/Google/DeepSeek/xAI/NVIDIA) — the blockrun.ai gateway owns those relationships and routes on the server side. Addresses the three scanner flags (opaque credential declaration, implied multi-provider credential collection, no install artifact for review) raised against v0.12.156 on https://clawhub.ai/1bcmax/clawrouter.
+
+---
+
 ## v0.12.156 — Apr 20, 2026
 
 - **Kimi K2.6 added** — Moonshot's new flagship (`moonshot/kimi-k2.6`, 256K context, vision + reasoning, $0.95 in / $4.00 out per 1M) registered in `BLOCKRUN_MODELS` with `kimi-k2.6` alias. Added to the curated `/model` picker list (`src/index.ts`, `scripts/update.sh`, `scripts/reinstall.sh`), the README pricing table, `docs/routing-profiles.md`, and the AI-agent-facing model catalog in `skills/clawrouter/SKILL.md`. Premium routing tier (`blockrun/premium`) now uses K2.6 as the SIMPLE primary and as a fallback in MEDIUM/COMPLEX, with `nvidia/kimi-k2.5` retained as the first fallback for reliability. The generic `kimi`/`moonshot` aliases still resolve to `nvidia/kimi-k2.5` (matches BlockRun server's `blockrun/kimi` stance); users opt in to K2.6 explicitly via `kimi-k2.6` or `blockrun/premium`.
