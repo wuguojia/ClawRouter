@@ -54,12 +54,12 @@ ClawRouter does **not** collect or forward third-party provider API keys. You do
 
 **What `models.providers.blockrun` stores (fully enumerated):**
 
-| Field | Sensitive | Purpose |
-|-------|-----------|---------|
-| `walletKey` | Yes | EVM private key used to sign USDC micropayments via x402. **Auto-generated locally on first run** — no user input required. Never transmitted over the network; only detached payment signatures are sent. |
-| `solanaKey` | Yes | Solana keypair (BIP-44 `m/44'/501'/0'/0'`). Auto-derived from the same local mnemonic via `@scure/bip32` + `@scure/bip39`. |
-| `gateway` | No | Gateway URL. Defaults: `https://blockrun.ai/api` (Base) · `https://sol.blockrun.ai/api` (Solana). |
-| `routing` | No | Optional override of the default four-tier router. |
+| Field       | Sensitive | Purpose                                                                                                                                                                                                    |
+| ----------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `walletKey` | Yes       | EVM private key used to sign USDC micropayments via x402. **Auto-generated locally on first run** — no user input required. Never transmitted over the network; only detached payment signatures are sent. |
+| `solanaKey` | Yes       | Solana keypair (BIP-44 `m/44'/501'/0'/0'`). Auto-derived from the same local mnemonic via `@scure/bip32` + `@scure/bip39`.                                                                                 |
+| `gateway`   | No        | Gateway URL. Defaults: `https://blockrun.ai/api` (Base) · `https://sol.blockrun.ai/api` (Solana).                                                                                                          |
+| `routing`   | No        | Optional override of the default four-tier router.                                                                                                                                                         |
 
 **How and where keys are stored:**
 
@@ -118,19 +118,19 @@ In addition to LLM routing, ClawRouter exposes BlockRun's x402-gated data APIs a
 
 Realtime prices and historical OHLC across every asset class. The agent should call these directly instead of scraping finance sites.
 
-| Tool | Coverage | Price |
-|---|---|---|
-| `blockrun_stock_price` | 12 global markets: US (NYSE/Nasdaq), HK, JP, KR, UK, DE, FR, NL, IE, LU, CN, CA | $0.001 / call |
-| `blockrun_stock_history` | OHLC bars at 1/5/15/60/240-min or D/W/M resolution | $0.001 / call |
-| `blockrun_stock_list` | Ticker lookup / company-name search per market | Free |
-| `blockrun_crypto_price` | BTC-USD, ETH-USD, SOL-USD, and more | Free |
-| `blockrun_fx_price` | EUR-USD, GBP-USD, JPY-USD, and more | Free |
-| `blockrun_commodity_price` | XAU-USD (gold), XAG-USD (silver), XPT-USD (platinum) | Free |
+| Tool                       | Coverage                                                                        | Price         |
+| -------------------------- | ------------------------------------------------------------------------------- | ------------- |
+| `blockrun_stock_price`     | 12 global markets: US (NYSE/Nasdaq), HK, JP, KR, UK, DE, FR, NL, IE, LU, CN, CA | $0.001 / call |
+| `blockrun_stock_history`   | OHLC bars at 1/5/15/60/240-min or D/W/M resolution                              | $0.001 / call |
+| `blockrun_stock_list`      | Ticker lookup / company-name search per market                                  | Free          |
+| `blockrun_crypto_price`    | BTC-USD, ETH-USD, SOL-USD, and more                                             | Free          |
+| `blockrun_fx_price`        | EUR-USD, GBP-USD, JPY-USD, and more                                             | Free          |
+| `blockrun_commodity_price` | XAU-USD (gold), XAG-USD (silver), XPT-USD (platinum)                            | Free          |
 
 ### Twitter/X Intelligence
 
-| Tool | Purpose | Price |
-|---|---|---|
+| Tool                      | Purpose                                                                           | Price         |
+| ------------------------- | --------------------------------------------------------------------------------- | ------------- |
 | `blockrun_x_users_lookup` | Real-time user profiles (followers, bio, verification) — up to 100 usernames/call | $0.001 / user |
 
 ### Polymarket (Predexon)

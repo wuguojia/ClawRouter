@@ -2487,7 +2487,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
       // --- Handle paid API paths (/v1/x/*, /v1/partner/*, /v1/pm/*, /v1/exa/*, /v1/modal/*,
       // /v1/stocks/*, /v1/usstock/*, /v1/crypto/*, /v1/fx/*, /v1/commodity/*) ---
-      if (req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)) {
+      if (
+        req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)
+      ) {
         try {
           await proxyPaidApiRequest(
             req,
