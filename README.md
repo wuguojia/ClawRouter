@@ -227,7 +227,15 @@ Generate images directly from chat with `/imagegen`:
 
 ## Video Generation
 
-Generate short AI videos via `POST http://localhost:8402/v1/videos/generations`. ClawRouter proxies the BlockRun gateway, handles x402 payment, and downloads the returned MP4 to local disk — the response `url` points to `http://localhost:8402/videos/<file>.mp4` so the asset survives past the upstream's temporary bucket.
+Generate short AI videos directly from chat with `/videogen`:
+
+```
+/videogen a red apple slowly spinning
+/videogen --model seedance-2-fast --duration=5 a cat waving
+/videogen --model grok-video a neon city at night
+```
+
+Or drive it over HTTP — ClawRouter proxies the BlockRun gateway, handles x402 payment, and downloads the returned MP4 to local disk, rewriting `url` to `http://localhost:8402/videos/<file>.mp4` so the asset survives past the upstream's temporary bucket.
 
 ```bash
 curl -X POST http://localhost:8402/v1/videos/generations \

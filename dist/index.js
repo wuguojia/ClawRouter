@@ -32656,7 +32656,6 @@ var require_util = __commonJS({
     var { InvalidArgumentError, ConnectTimeoutError } = require_errors();
     var { headerNameLowerCasedRecord } = require_constants2();
     var { tree } = require_tree();
-    var [nodeMajor, nodeMinor] = process.versions.node.split(".", 2).map((v) => Number(v));
     var BodyAsyncIterable = class {
       constructor(body) {
         this[kBody] = body;
@@ -32805,7 +32804,7 @@ var require_util = __commonJS({
     }
     function hasSafeIterator(obj) {
       const prototype = Object.getPrototypeOf(obj);
-      const ownIterator = Object.prototype.hasOwnProperty.call(obj, Symbol.iterator);
+      const ownIterator = Object.hasOwn(obj, Symbol.iterator);
       return ownIterator || prototype != null && prototype !== Object.prototype && typeof obj[Symbol.iterator] === "function";
     }
     function bodyLength(body) {
@@ -33457,8 +33456,6 @@ var require_util = __commonJS({
       normalizedMethodRecords,
       isValidPort,
       isHttpOrHttpsPrefixed,
-      nodeMajor,
-      nodeMinor,
       safeHTTPMethods: Object.freeze(["GET", "HEAD", "OPTIONS", "TRACE"]),
       wrapRequestBody,
       setupConnectTimeout,
@@ -34192,6 +34189,7 @@ var require_dispatcher_base = __commonJS({
     var { kDestroy, kClose, kClosed, kDestroyed, kDispatch } = require_symbols();
     var kOnDestroyed = /* @__PURE__ */ Symbol("onDestroyed");
     var kOnClosed = /* @__PURE__ */ Symbol("onClosed");
+    var kWebSocketOptions = /* @__PURE__ */ Symbol("webSocketOptions");
     var DispatcherBase = class extends Dispatcher {
       /** @type {boolean} */
       [kDestroyed] = false;
@@ -34201,6 +34199,22 @@ var require_dispatcher_base = __commonJS({
       [kClosed] = false;
       /** @type {Array<Function>|null} */
       [kOnClosed] = null;
+      /**
+       * @param {import('../../types/dispatcher').DispatcherOptions} [opts]
+       */
+      constructor(opts) {
+        super();
+        this[kWebSocketOptions] = opts?.webSocket ?? {};
+      }
+      /**
+       * @returns {import('../../types/dispatcher').WebSocketOptions}
+       */
+      get webSocketOptions() {
+        return {
+          maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024
+          // 128 MB default
+        };
+      }
       /** @returns {boolean} */
       get destroyed() {
         return this[kDestroyed];
@@ -34290,6 +34304,9 @@ var require_dispatcher_base = __commonJS({
         try {
           if (!opts || typeof opts !== "object") {
             throw new InvalidArgumentError("opts must be an object.");
+          }
+          if (opts.dispatcher) {
+            throw new InvalidArgumentError("opts.dispatcher is not supported by instance methods. Pass opts.dispatcher to the top-level undici functions or call the dispatcher instance method directly.");
           }
           if (this[kDestroyed] || this[kOnDestroyed]) {
             throw new ClientDestroyedError();
@@ -35765,115 +35782,13 @@ var require_data_url = __commonJS({
   }
 });
 
-// node_modules/undici/lib/util/runtime-features.js
-var require_runtime_features = __commonJS({
-  "node_modules/undici/lib/util/runtime-features.js"(exports, module) {
-    "use strict";
-    var lazyLoaders = {
-      __proto__: null,
-      "node:crypto": () => __require("crypto"),
-      "node:sqlite": () => __require("sqlite"),
-      "node:worker_threads": () => __require("worker_threads"),
-      "node:zlib": () => __require("zlib")
-    };
-    function detectRuntimeFeatureByNodeModule(moduleName) {
-      try {
-        lazyLoaders[moduleName]();
-        return true;
-      } catch (err) {
-        if (err.code !== "ERR_UNKNOWN_BUILTIN_MODULE" && err.code !== "ERR_NO_CRYPTO") {
-          throw err;
-        }
-        return false;
-      }
-    }
-    function detectRuntimeFeatureByExportedProperty(moduleName, property) {
-      const module2 = lazyLoaders[moduleName]();
-      return typeof module2[property] !== "undefined";
-    }
-    var runtimeFeaturesByExportedProperty = (
-      /** @type {const} */
-      ["markAsUncloneable", "zstd"]
-    );
-    var exportedPropertyLookup = {
-      markAsUncloneable: ["node:worker_threads", "markAsUncloneable"],
-      zstd: ["node:zlib", "createZstdDecompress"]
-    };
-    var runtimeFeaturesAsNodeModule = (
-      /** @type {const} */
-      ["crypto", "sqlite"]
-    );
-    var features = (
-      /** @type {const} */
-      [
-        ...runtimeFeaturesAsNodeModule,
-        ...runtimeFeaturesByExportedProperty
-      ]
-    );
-    function detectRuntimeFeature(feature) {
-      if (runtimeFeaturesAsNodeModule.includes(
-        /** @type {RuntimeFeatureByNodeModule} */
-        feature
-      )) {
-        return detectRuntimeFeatureByNodeModule(`node:${feature}`);
-      } else if (runtimeFeaturesByExportedProperty.includes(
-        /** @type {RuntimeFeatureByExportedProperty} */
-        feature
-      )) {
-        const [moduleName, property] = exportedPropertyLookup[feature];
-        return detectRuntimeFeatureByExportedProperty(moduleName, property);
-      }
-      throw new TypeError(`unknown feature: ${feature}`);
-    }
-    var RuntimeFeatures = class {
-      /** @type {Map<Feature, boolean>} */
-      #map = /* @__PURE__ */ new Map();
-      /**
-       * Clears all cached feature detections.
-       */
-      clear() {
-        this.#map.clear();
-      }
-      /**
-       * @param {Feature} feature
-       * @returns {boolean}
-       */
-      has(feature) {
-        return this.#map.get(feature) ?? this.#detectRuntimeFeature(feature);
-      }
-      /**
-       * @param {Feature} feature
-       * @param {boolean} value
-       */
-      set(feature, value) {
-        if (features.includes(feature) === false) {
-          throw new TypeError(`unknown feature: ${feature}`);
-        }
-        this.#map.set(feature, value);
-      }
-      /**
-       * @param {Feature} feature
-       * @returns {boolean}
-       */
-      #detectRuntimeFeature(feature) {
-        const result = detectRuntimeFeature(feature);
-        this.#map.set(feature, result);
-        return result;
-      }
-    };
-    var instance = new RuntimeFeatures();
-    module.exports.runtimeFeatures = instance;
-    module.exports.default = instance;
-  }
-});
-
 // node_modules/undici/lib/web/webidl/index.js
 var require_webidl = __commonJS({
   "node_modules/undici/lib/web/webidl/index.js"(exports, module) {
     "use strict";
     var assert8 = __require("assert");
     var { types, inspect } = __require("util");
-    var { runtimeFeatures } = require_runtime_features();
+    var { markAsUncloneable } = __require("worker_threads");
     var UNDEFINED = 1;
     var BOOLEAN = 2;
     var STRING = 3;
@@ -35993,8 +35908,7 @@ var require_webidl = __commonJS({
           return "Object";
       }
     };
-    webidl.util.markAsUncloneable = runtimeFeatures.has("markAsUncloneable") ? __require("worker_threads").markAsUncloneable : () => {
-    };
+    webidl.util.markAsUncloneable = markAsUncloneable;
     webidl.util.ConvertToInt = function(V, bitLength, signedness, flags) {
       let upperBound;
       let lowerBound;
@@ -37169,7 +37083,7 @@ var require_util2 = __commonJS({
       return !!(url.username || url.password);
     }
     function isTraversableNavigable(navigable) {
-      return true;
+      return navigable != null && navigable !== "client" && navigable !== "no-traversable";
     }
     var EnvironmentSettingsObjectBase = class {
       get baseUrl() {
@@ -37722,22 +37636,78 @@ var require_formdata_parser = __commonJS({
   }
 });
 
-// node_modules/undici/lib/util/promise.js
-var require_promise = __commonJS({
-  "node_modules/undici/lib/util/promise.js"(exports, module) {
+// node_modules/undici/lib/util/runtime-features.js
+var require_runtime_features = __commonJS({
+  "node_modules/undici/lib/util/runtime-features.js"(exports, module) {
     "use strict";
-    function createDeferredPromise() {
-      let res;
-      let rej;
-      const promise = new Promise((resolve, reject) => {
-        res = resolve;
-        rej = reject;
-      });
-      return { promise, resolve: res, reject: rej };
-    }
-    module.exports = {
-      createDeferredPromise
+    var lazyLoaders = {
+      __proto__: null,
+      "node:crypto": () => __require("crypto"),
+      "node:sqlite": () => __require("sqlite")
     };
+    function detectRuntimeFeatureByNodeModule(moduleName) {
+      try {
+        lazyLoaders[moduleName]();
+        return true;
+      } catch (err) {
+        if (err.code !== "ERR_UNKNOWN_BUILTIN_MODULE" && err.code !== "ERR_NO_CRYPTO") {
+          throw err;
+        }
+        return false;
+      }
+    }
+    var runtimeFeaturesAsNodeModule = (
+      /** @type {const} */
+      ["crypto", "sqlite"]
+    );
+    function detectRuntimeFeature(feature) {
+      if (runtimeFeaturesAsNodeModule.includes(
+        /** @type {RuntimeFeatureByNodeModule} */
+        feature
+      )) {
+        return detectRuntimeFeatureByNodeModule(`node:${feature}`);
+      }
+      throw new TypeError(`unknown feature: ${feature}`);
+    }
+    var RuntimeFeatures = class {
+      /** @type {Map<Feature, boolean>} */
+      #map = /* @__PURE__ */ new Map();
+      /**
+       * Clears all cached feature detections.
+       */
+      clear() {
+        this.#map.clear();
+      }
+      /**
+       * @param {Feature} feature
+       * @returns {boolean}
+       */
+      has(feature) {
+        return this.#map.get(feature) ?? this.#detectRuntimeFeature(feature);
+      }
+      /**
+       * @param {Feature} feature
+       * @param {boolean} value
+       */
+      set(feature, value) {
+        if (runtimeFeaturesAsNodeModule.includes(feature) === false) {
+          throw new TypeError(`unknown feature: ${feature}`);
+        }
+        this.#map.set(feature, value);
+      }
+      /**
+       * @param {Feature} feature
+       * @returns {boolean}
+       */
+      #detectRuntimeFeature(feature) {
+        const result = detectRuntimeFeature(feature);
+        this.#map.set(feature, result);
+        return result;
+      }
+    };
+    var instance = new RuntimeFeatures();
+    module.exports.runtimeFeatures = instance;
+    module.exports.default = instance;
   }
 });
 
@@ -37759,7 +37729,6 @@ var require_body = __commonJS({
     var { isUint8Array } = __require("util/types");
     var { serializeAMimeType } = require_data_url();
     var { multipartFormDataParser } = require_formdata_parser();
-    var { createDeferredPromise } = require_promise();
     var { parseJSONFromBytes } = require_infra();
     var { utf8DecodeBytes } = require_encoding();
     var { runtimeFeatures } = require_runtime_features();
@@ -37985,7 +37954,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
       if (bodyUnusable(object)) {
         return Promise.reject(new TypeError("Body is unusable: Body has already been read"));
       }
-      const promise = createDeferredPromise();
+      const promise = Promise.withResolvers();
       const errorSteps = promise.reject;
       const successSteps = (data) => {
         try {
@@ -40024,7 +39993,8 @@ var require_client = __commonJS({
         useH2c,
         initialWindowSize,
         connectionWindowSize,
-        pingInterval
+        pingInterval,
+        webSocket
       } = {}) {
         if (keepAlive !== void 0) {
           throw new InvalidArgumentError("unsupported keepAlive, use pipelining=0 instead");
@@ -40102,7 +40072,7 @@ var require_client = __commonJS({
         if (pingInterval != null && (typeof pingInterval !== "number" || !Number.isInteger(pingInterval) || pingInterval < 0)) {
           throw new InvalidArgumentError("pingInterval must be a positive integer, greater or equal to 0");
         }
-        super();
+        super({ webSocket });
         if (typeof connect2 !== "function") {
           connect2 = buildConnector({
             ...tls,
@@ -40749,11 +40719,10 @@ var require_pool = __commonJS({
             ...connect
           });
         }
-        super();
+        super(options);
         this[kConnections] = connections || null;
         this[kUrl] = util2.parseOrigin(origin);
         this[kOptions] = { ...util2.deepClone(options), connect, allowH2, clientTtl, socketPath };
-        this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kFactory] = factory;
         this.on("connect", (origin2, targets) => {
           if (clientTtl != null && clientTtl > 0) {
@@ -40837,7 +40806,6 @@ var require_balanced_pool = __commonJS({
         }
         super();
         this[kOptions] = { ...util2.deepClone(opts) };
-        this[kOptions].interceptors = opts.interceptors ? { ...opts.interceptors } : void 0;
         this[kIndex] = -1;
         this[kCurrentWeight] = 0;
         this[kMaxWeightPerServer] = this[kOptions].maxWeightPerServer || 100;
@@ -41004,7 +40972,6 @@ var require_round_robin_pool = __commonJS({
         this[kConnections] = connections || null;
         this[kUrl] = util2.parseOrigin(origin);
         this[kOptions] = { ...util2.deepClone(options), connect, allowH2, clientTtl, socketPath };
-        this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kFactory] = factory;
         this[kIndex] = -1;
         this.on("connect", (origin2, targets) => {
@@ -41087,7 +41054,7 @@ var require_agent = __commonJS({
         if (typeof maxOrigins !== "number" || Number.isNaN(maxOrigins) || maxOrigins <= 0) {
           throw new InvalidArgumentError("maxOrigins must be a number greater than 0");
         }
-        super();
+        super(options);
         if (connect && typeof connect !== "function") {
           connect = { ...connect };
         }
@@ -41269,6 +41236,9 @@ var require_dispatcher1_wrapper = __commonJS({
         return new LegacyHandlerWrapper(handler);
       }
       dispatch(opts, handler) {
+        if (opts.allowH2 !== false) {
+          opts = { ...opts, allowH2: false };
+        }
         return this.#dispatcher.dispatch(opts, _Dispatcher1Wrapper.wrapHandler(handler));
       }
       close(...args) {
@@ -41811,69 +41781,69 @@ var require_socks5_proxy_agent = __commonJS({
         const proxyHost = this[kProxyUrl].hostname;
         const proxyPort = parseInt(this[kProxyUrl].port) || 1080;
         debug("creating SOCKS5 connection to", proxyHost, proxyPort);
-        const socket = await new Promise((resolve, reject) => {
-          const onConnect = () => {
-            socket2.removeListener("error", onError);
-            resolve(socket2);
-          };
-          const onError = (err) => {
-            socket2.removeListener("connect", onConnect);
-            reject(err);
-          };
-          const socket2 = net.connect({
-            host: proxyHost,
-            port: proxyPort
-          });
-          socket2.once("connect", onConnect);
-          socket2.once("error", onError);
+        const socketReady = Promise.withResolvers();
+        const onSocketConnect = () => {
+          socket.removeListener("error", onSocketError);
+          socketReady.resolve(socket);
+        };
+        const onSocketError = (err) => {
+          socket.removeListener("connect", onSocketConnect);
+          socketReady.reject(err);
+        };
+        const socket = net.connect({
+          host: proxyHost,
+          port: proxyPort
         });
+        socket.once("connect", onSocketConnect);
+        socket.once("error", onSocketError);
+        await socketReady.promise;
         const socks5Client = new Socks5Client(socket, this[kProxyAuth]);
         socks5Client.on("error", (err) => {
           debug("SOCKS5 error:", err);
           socket.destroy();
         });
         await socks5Client.handshake();
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("SOCKS5 authentication timeout"));
-          }, 5e3);
-          const onAuthenticated = () => {
-            clearTimeout(timeout);
-            socks5Client.removeListener("error", onError);
-            resolve();
-          };
-          const onError = (err) => {
-            clearTimeout(timeout);
-            socks5Client.removeListener("authenticated", onAuthenticated);
-            reject(err);
-          };
-          if (socks5Client.state === "authenticated") {
-            clearTimeout(timeout);
-            resolve();
-          } else {
-            socks5Client.once("authenticated", onAuthenticated);
-            socks5Client.once("error", onError);
-          }
-        });
+        const authenticationReady = Promise.withResolvers();
+        const authenticationTimeout = setTimeout(() => {
+          authenticationReady.reject(new Error("SOCKS5 authentication timeout"));
+        }, 5e3);
+        const onAuthenticated = () => {
+          clearTimeout(authenticationTimeout);
+          socks5Client.removeListener("error", onAuthenticationError);
+          authenticationReady.resolve();
+        };
+        const onAuthenticationError = (err) => {
+          clearTimeout(authenticationTimeout);
+          socks5Client.removeListener("authenticated", onAuthenticated);
+          authenticationReady.reject(err);
+        };
+        if (socks5Client.state === "authenticated") {
+          clearTimeout(authenticationTimeout);
+          authenticationReady.resolve();
+        } else {
+          socks5Client.once("authenticated", onAuthenticated);
+          socks5Client.once("error", onAuthenticationError);
+        }
+        await authenticationReady.promise;
         await socks5Client.connect(targetHost, targetPort);
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("SOCKS5 connection timeout"));
-          }, 5e3);
-          const onConnected = (info) => {
-            debug("SOCKS5 tunnel established to", targetHost, targetPort, "via", info);
-            clearTimeout(timeout);
-            socks5Client.removeListener("error", onError);
-            resolve();
-          };
-          const onError = (err) => {
-            clearTimeout(timeout);
-            socks5Client.removeListener("connected", onConnected);
-            reject(err);
-          };
-          socks5Client.once("connected", onConnected);
-          socks5Client.once("error", onError);
-        });
+        const connectionReady = Promise.withResolvers();
+        const connectionTimeout = setTimeout(() => {
+          connectionReady.reject(new Error("SOCKS5 connection timeout"));
+        }, 5e3);
+        const onConnected = (info) => {
+          debug("SOCKS5 tunnel established to", targetHost, targetPort, "via", info);
+          clearTimeout(connectionTimeout);
+          socks5Client.removeListener("error", onConnectionError);
+          connectionReady.resolve();
+        };
+        const onConnectionError = (err) => {
+          clearTimeout(connectionTimeout);
+          socks5Client.removeListener("connected", onConnected);
+          connectionReady.reject(err);
+        };
+        socks5Client.once("connected", onConnected);
+        socks5Client.once("error", onConnectionError);
+        await connectionReady.promise;
         return socket;
       }
       /**
@@ -41905,10 +41875,10 @@ var require_socks5_proxy_agent = __commonJS({
                       servername: targetHost,
                       ...connectOpts.tls || {}
                     });
-                    await new Promise((resolve, reject) => {
-                      finalSocket.once("secureConnect", resolve);
-                      finalSocket.once("error", reject);
-                    });
+                    const tlsReady = Promise.withResolvers();
+                    finalSocket.once("secureConnect", tlsReady.resolve);
+                    finalSocket.once("error", tlsReady.reject);
+                    await tlsReady.promise;
                   }
                   callback(null, finalSocket);
                 } catch (err) {
@@ -42032,7 +42002,7 @@ var require_proxy_agent = __commonJS({
         if (typeof clientFactory !== "function") {
           throw new InvalidArgumentError("Proxy opts.clientFactory must be a function.");
         }
-        const { proxyTunnel = true } = opts;
+        const { proxyTunnel = true, connectTimeout } = opts;
         super();
         const url = this.#getUrl(opts);
         const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url;
@@ -42050,9 +42020,9 @@ var require_proxy_agent = __commonJS({
         } else if (username && password) {
           this[kProxyHeaders]["proxy-authorization"] = `Basic ${Buffer.from(`${decodeURIComponent(username)}:${decodeURIComponent(password)}`).toString("base64")}`;
         }
-        const connect = buildConnector({ ...opts.proxyTls });
-        this[kConnectEndpoint] = buildConnector({ ...opts.requestTls });
-        this[kConnectEndpointHTTP1] = buildConnector({ ...opts.requestTls, allowH2: false });
+        const connect = buildConnector({ timeout: connectTimeout, ...opts.proxyTls });
+        this[kConnectEndpoint] = buildConnector({ timeout: connectTimeout, ...opts.requestTls });
+        this[kConnectEndpointHTTP1] = buildConnector({ timeout: connectTimeout, ...opts.requestTls, allowH2: false });
         const agentFactory = opts.factory || defaultAgentFactory;
         const factory = (origin2, options) => {
           const { protocol: protocol2 } = new URL(origin2);
@@ -42684,7 +42654,7 @@ var require_h2c_client = __commonJS({
             "h2c-client: Only h2c protocol is supported"
           );
         }
-        const { connect, maxConcurrentStreams, pipelining, ...opts } = clientOpts ?? {};
+        const { maxConcurrentStreams, pipelining, ...opts } = clientOpts ?? {};
         let defaultMaxConcurrentStreams = 100;
         let defaultPipelining = 100;
         if (maxConcurrentStreams != null && Number.isInteger(maxConcurrentStreams) && maxConcurrentStreams > 0) {
@@ -45974,24 +45944,10 @@ var require_redirect_handler = __commonJS({
   "node_modules/undici/lib/handler/redirect-handler.js"(exports, module) {
     "use strict";
     var util2 = require_util();
-    var { kBodyUsed } = require_symbols();
     var assert8 = __require("assert");
     var { InvalidArgumentError } = require_errors();
-    var EE = __require("events");
     var redirectableStatusCodes = [300, 301, 302, 303, 307, 308];
-    var kBody = /* @__PURE__ */ Symbol("body");
     var noop = () => {
-    };
-    var BodyAsyncIterable = class {
-      constructor(body) {
-        this[kBody] = body;
-        this[kBodyUsed] = false;
-      }
-      async *[Symbol.asyncIterator]() {
-        assert8(!this[kBodyUsed], "disturbed");
-        this[kBodyUsed] = true;
-        yield* this[kBody];
-      }
     };
     var RedirectHandler = class _RedirectHandler {
       static buildDispatch(dispatcher, maxRedirections) {
@@ -46009,26 +45965,10 @@ var require_redirect_handler = __commonJS({
         this.location = null;
         const { maxRedirections: _, ...cleanOpts } = opts;
         this.opts = cleanOpts;
+        this.opts.body = util2.wrapRequestBody(this.opts.body);
         this.maxRedirections = maxRedirections;
         this.handler = handler;
         this.history = [];
-        if (util2.isStream(this.opts.body)) {
-          if (util2.bodyLength(this.opts.body) === 0) {
-            this.opts.body.on("data", function() {
-              assert8(false);
-            });
-          }
-          if (typeof this.opts.body.readableDidRead !== "boolean") {
-            this.opts.body[kBodyUsed] = false;
-            EE.prototype.on.call(this.opts.body, "data", function() {
-              this[kBodyUsed] = true;
-            });
-          }
-        } else if (this.opts.body && typeof this.opts.body.pipeTo === "function") {
-          this.opts.body = new BodyAsyncIterable(this.opts.body);
-        } else if (this.opts.body && typeof this.opts.body !== "string" && !ArrayBuffer.isView(this.opts.body) && util2.isIterable(this.opts.body) && !util2.isFormDataLike(this.opts.body)) {
-          this.opts.body = new BodyAsyncIterable(this.opts.body);
-        }
       }
       onRequestStart(controller, context) {
         this.handler.onRequestStart?.(controller, { ...context, history: this.history });
@@ -46354,7 +46294,7 @@ var require_dns = __commonJS({
     var maxInt = Math.pow(2, 31) - 1;
     function hasSafeIterator(headers) {
       const prototype = Object.getPrototypeOf(headers);
-      const ownIterator = Object.prototype.hasOwnProperty.call(headers, Symbol.iterator);
+      const ownIterator = Object.hasOwn(headers, Symbol.iterator);
       return ownIterator || prototype != null && prototype !== Object.prototype && typeof headers[Symbol.iterator] === "function";
     }
     function isHostHeader(key) {
@@ -47024,18 +46964,17 @@ var require_cache = __commonJS({
       }
     }
     function makeDeduplicationKey(cacheKey2, excludeHeaders) {
-      let key = `${cacheKey2.origin}:${cacheKey2.method}:${cacheKey2.path}`;
+      const headers = {};
       if (cacheKey2.headers) {
         const sortedHeaders = Object.keys(cacheKey2.headers).sort();
         for (const header of sortedHeaders) {
           if (excludeHeaders?.has(header.toLowerCase())) {
             continue;
           }
-          const value = cacheKey2.headers[header];
-          key += `:${header}=${Array.isArray(value) ? value.join(",") : value}`;
+          headers[header] = cacheKey2.headers[header];
         }
       }
-      return key;
+      return JSON.stringify([cacheKey2.origin, cacheKey2.method, cacheKey2.path, headers]);
     }
     module.exports = {
       makeCacheKey,
@@ -48546,7 +48485,6 @@ var require_decompress = __commonJS({
     var { createInflate, createGunzip, createBrotliDecompress, createZstdDecompress } = __require("zlib");
     var { pipeline } = __require("stream");
     var DecoratorHandler = require_decorator_handler();
-    var { runtimeFeatures } = require_runtime_features();
     var supportedEncodings = {
       gzip: createGunzip,
       "x-gzip": createGunzip,
@@ -48554,7 +48492,7 @@ var require_decompress = __commonJS({
       deflate: createInflate,
       compress: createInflate,
       "x-compress": createInflate,
-      ...runtimeFeatures.has("zstd") ? { zstd: createZstdDecompress } : {}
+      zstd: createZstdDecompress
     };
     var defaultSkipStatusCodes = (
       /** @type {const} */
@@ -51423,10 +51361,7 @@ var require_fetch = __commonJS({
     var { webidl } = require_webidl();
     var { STATUS_CODES } = __require("http");
     var { bytesMatch } = require_subresource_integrity();
-    var { createDeferredPromise } = require_promise();
     var { isomorphicEncode } = require_infra();
-    var { runtimeFeatures } = require_runtime_features();
-    var hasZstd = runtimeFeatures.has("zstd");
     var GET_OR_HEAD = ["GET", "HEAD"];
     var defaultUserAgent = typeof __UNDICI_IS_NODE__ !== "undefined" || typeof esbuildDetection !== "undefined" ? "node" : "undici";
     var resolveObjectURL;
@@ -51465,7 +51400,7 @@ var require_fetch = __commonJS({
     }
     function fetch2(input, init = void 0) {
       webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
-      let p = createDeferredPromise();
+      let p = Promise.withResolvers();
       let requestObject;
       try {
         requestObject = new Request2(input, init);
@@ -52103,10 +52038,10 @@ var require_fetch = __commonJS({
         response.rangeRequested = true;
       }
       response.requestIncludesCredentials = includeCredentials;
-      if (response.status === 401 && httpRequest.responseTainting !== "cors" && includeCredentials && isTraversableNavigable(request.traversableForUserPrompts)) {
+      if (response.status === 401 && httpRequest.responseTainting !== "cors" && includeCredentials && (request.useURLCredentials !== void 0 || isTraversableNavigable(request.traversableForUserPrompts))) {
         if (request.body != null) {
           if (request.body.source == null) {
-            return makeNetworkError("expected non-null body source");
+            return response;
           }
           request.body = safelyExtractBody(request.body.source)[0];
         }
@@ -52396,7 +52331,7 @@ var require_fetch = __commonJS({
                         flush: zlib.constants.BROTLI_OPERATION_FLUSH,
                         finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
                       }));
-                    } else if (coding === "zstd" && hasZstd) {
+                    } else if (coding === "zstd") {
                       decoders.push(zlib.createZstdDecompress({
                         flush: zlib.constants.ZSTD_e_continue,
                         finishFlush: zlib.constants.ZSTD_e_end
@@ -52530,7 +52465,6 @@ var require_cache3 = __commonJS({
     var { Request: Request2, fromInnerRequest, getRequestState } = require_request2();
     var { fetching } = require_fetch();
     var { urlIsHttpHttpsScheme, readAllBytes } = require_util2();
-    var { createDeferredPromise } = require_promise();
     var Cache = class _Cache {
       /**
        * @see https://w3c.github.io/ServiceWorker/#dfn-relevant-request-response-list
@@ -52610,7 +52544,7 @@ var require_cache3 = __commonJS({
           r.initiator = "fetch";
           r.destination = "subresource";
           requestList.push(r);
-          const responsePromise = createDeferredPromise();
+          const responsePromise = Promise.withResolvers();
           fetchControllers.push(fetching({
             request: r,
             processResponse(response) {
@@ -52661,7 +52595,7 @@ var require_cache3 = __commonJS({
           operations.push(operation);
           index2++;
         }
-        const cacheJobPromise = createDeferredPromise();
+        const cacheJobPromise = Promise.withResolvers();
         let errorData = null;
         try {
           this.#batchCacheOperations(operations);
@@ -52720,7 +52654,7 @@ var require_cache3 = __commonJS({
           });
         }
         const clonedResponse = cloneResponse(innerResponse);
-        const bodyReadPromise = createDeferredPromise();
+        const bodyReadPromise = Promise.withResolvers();
         if (innerResponse.body != null) {
           const stream = innerResponse.body.stream;
           const reader = stream.getReader();
@@ -52742,7 +52676,7 @@ var require_cache3 = __commonJS({
         if (clonedResponse.body != null) {
           clonedResponse.body.source = bytes;
         }
-        const cacheJobPromise = createDeferredPromise();
+        const cacheJobPromise = Promise.withResolvers();
         let errorData = null;
         try {
           this.#batchCacheOperations(operations);
@@ -52781,7 +52715,7 @@ var require_cache3 = __commonJS({
           options
         };
         operations.push(operation);
-        const cacheJobPromise = createDeferredPromise();
+        const cacheJobPromise = Promise.withResolvers();
         let errorData = null;
         let requestResponses;
         try {
@@ -52820,7 +52754,7 @@ var require_cache3 = __commonJS({
             r = getRequestState(new Request2(request));
           }
         }
-        const promise = createDeferredPromise();
+        const promise = Promise.withResolvers();
         const requests = [];
         if (request === void 0) {
           for (const requestResponse of this.#relevantRequestResponseList) {
@@ -54407,27 +54341,26 @@ var require_permessage_deflate2 = __commonJS({
     var tail = Buffer.from([0, 0, 255, 255]);
     var kBuffer = /* @__PURE__ */ Symbol("kBuffer");
     var kLength = /* @__PURE__ */ Symbol("kLength");
-    var kDefaultMaxDecompressedSize = 4 * 1024 * 1024;
     var PerMessageDeflate2 = class {
       /** @type {import('node:zlib').InflateRaw} */
       #inflate;
       #options = {};
-      /** @type {boolean} */
-      #aborted = false;
-      /** @type {Function|null} */
-      #currentCallback = null;
+      #maxPayloadSize = 0;
       /**
        * @param {Map<string, string>} extensions
        */
-      constructor(extensions) {
+      constructor(extensions, options) {
         this.#options.serverNoContextTakeover = extensions.has("server_no_context_takeover");
         this.#options.serverMaxWindowBits = extensions.get("server_max_window_bits");
+        this.#maxPayloadSize = options.maxPayloadSize;
       }
+      /**
+       * Decompress a compressed payload.
+       * @param {Buffer} chunk Compressed data
+       * @param {boolean} fin Final fragment flag
+       * @param {Function} callback Callback function
+       */
       decompress(chunk, fin, callback) {
-        if (this.#aborted) {
-          callback(new MessageSizeExceededError());
-          return;
-        }
         if (!this.#inflate) {
           let windowBits = Z_DEFAULT_WINDOWBITS;
           if (this.#options.serverMaxWindowBits) {
@@ -54446,20 +54379,11 @@ var require_permessage_deflate2 = __commonJS({
           this.#inflate[kBuffer] = [];
           this.#inflate[kLength] = 0;
           this.#inflate.on("data", (data) => {
-            if (this.#aborted) {
-              return;
-            }
             this.#inflate[kLength] += data.length;
-            if (this.#inflate[kLength] > kDefaultMaxDecompressedSize) {
-              this.#aborted = true;
+            if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
+              callback(new MessageSizeExceededError());
               this.#inflate.removeAllListeners();
-              this.#inflate.destroy();
               this.#inflate = null;
-              if (this.#currentCallback) {
-                const cb = this.#currentCallback;
-                this.#currentCallback = null;
-                cb(new MessageSizeExceededError());
-              }
               return;
             }
             this.#inflate[kBuffer].push(data);
@@ -54469,19 +54393,17 @@ var require_permessage_deflate2 = __commonJS({
             callback(err);
           });
         }
-        this.#currentCallback = callback;
         this.#inflate.write(chunk);
         if (fin) {
           this.#inflate.write(tail);
         }
         this.#inflate.flush(() => {
-          if (this.#aborted || !this.#inflate) {
+          if (!this.#inflate) {
             return;
           }
           const full = Buffer.concat(this.#inflate[kBuffer], this.#inflate[kLength]);
           this.#inflate[kBuffer].length = 0;
           this.#inflate[kLength] = 0;
-          this.#currentCallback = null;
           callback(null, full);
         });
       }
@@ -54522,16 +54444,20 @@ var require_receiver2 = __commonJS({
       #extensions;
       /** @type {import('./websocket').Handler} */
       #handler;
+      /** @type {number} */
+      #maxPayloadSize;
       /**
        * @param {import('./websocket').Handler} handler
        * @param {Map<string, string>|null} extensions
+       * @param {{ maxPayloadSize?: number }} [options]
        */
-      constructor(handler, extensions) {
+      constructor(handler, extensions, options = {}) {
         super();
         this.#handler = handler;
         this.#extensions = extensions == null ? /* @__PURE__ */ new Map() : extensions;
+        this.#maxPayloadSize = options.maxPayloadSize ?? 0;
         if (this.#extensions.has("permessage-deflate")) {
-          this.#extensions.set("permessage-deflate", new PerMessageDeflate2(extensions));
+          this.#extensions.set("permessage-deflate", new PerMessageDeflate2(extensions, options));
         }
       }
       /**
@@ -54543,6 +54469,13 @@ var require_receiver2 = __commonJS({
         this.#byteOffset += chunk.length;
         this.#loop = true;
         this.run(callback);
+      }
+      #validatePayloadLength() {
+        if (this.#maxPayloadSize > 0 && !isControlFrame(this.#info.opcode) && this.#info.payloadLength > this.#maxPayloadSize) {
+          failWebsocketConnection(this.#handler, 1009, "Payload size exceeds maximum allowed size");
+          return false;
+        }
+        return true;
       }
       /**
        * Runs whenever a new chunk is received.
@@ -54603,6 +54536,9 @@ var require_receiver2 = __commonJS({
             if (payloadLength <= 125) {
               this.#info.payloadLength = payloadLength;
               this.#state = parserStates.READ_DATA;
+              if (!this.#validatePayloadLength()) {
+                return;
+              }
             } else if (payloadLength === 126) {
               this.#state = parserStates.PAYLOADLENGTH_16;
             } else if (payloadLength === 127) {
@@ -54623,6 +54559,9 @@ var require_receiver2 = __commonJS({
             const buffer2 = this.consume(2);
             this.#info.payloadLength = buffer2.readUInt16BE(0);
             this.#state = parserStates.READ_DATA;
+            if (!this.#validatePayloadLength()) {
+              return;
+            }
           } else if (this.#state === parserStates.PAYLOADLENGTH_64) {
             if (this.#byteOffset < 8) {
               return callback();
@@ -54636,6 +54575,9 @@ var require_receiver2 = __commonJS({
             }
             this.#info.payloadLength = lower;
             this.#state = parserStates.READ_DATA;
+            if (!this.#validatePayloadLength()) {
+              return;
+            }
           } else if (this.#state === parserStates.READ_DATA) {
             if (this.#byteOffset < this.#info.payloadLength) {
               return callback();
@@ -54652,24 +54594,33 @@ var require_receiver2 = __commonJS({
                 }
                 this.#state = parserStates.INFO;
               } else {
-                this.#extensions.get("permessage-deflate").decompress(body, this.#info.fin, (error, data) => {
-                  if (error) {
-                    const code = error instanceof MessageSizeExceededError ? 1009 : 1007;
-                    failWebsocketConnection(this.#handler, code, error.message);
-                    return;
-                  }
-                  this.writeFragments(data);
-                  if (!this.#info.fin) {
-                    this.#state = parserStates.INFO;
+                this.#extensions.get("permessage-deflate").decompress(
+                  body,
+                  this.#info.fin,
+                  (error, data) => {
+                    if (error) {
+                      const code = error instanceof MessageSizeExceededError ? 1009 : 1007;
+                      failWebsocketConnection(this.#handler, code, error.message);
+                      return;
+                    }
+                    this.writeFragments(data);
+                    if (this.#maxPayloadSize > 0 && this.#fragmentsBytes > this.#maxPayloadSize) {
+                      failWebsocketConnection(this.#handler, 1009, new MessageSizeExceededError().message);
+                      return;
+                    }
+                    if (!this.#info.fin) {
+                      this.#state = parserStates.INFO;
+                      this.#loop = true;
+                      this.run(callback);
+                      return;
+                    }
+                    websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments());
                     this.#loop = true;
+                    this.#state = parserStates.INFO;
                     this.run(callback);
-                    return;
-                  }
-                  websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments());
-                  this.#loop = true;
-                  this.#state = parserStates.INFO;
-                  this.run(callback);
-                });
+                  },
+                  this.#fragmentsBytes
+                );
                 this.#loop = false;
                 break;
               }
@@ -55185,7 +55136,10 @@ var require_websocket2 = __commonJS({
        */
       #onConnectionEstablished(response, parsedExtensions) {
         this.#handler.socket = response.socket;
-        const parser = new ByteParser(this.#handler, parsedExtensions);
+        const maxPayloadSize = this.#handler.controller.dispatcher?.webSocketOptions?.maxPayloadSize;
+        const parser = new ByteParser(this.#handler, parsedExtensions, {
+          maxPayloadSize
+        });
         parser.on("drain", () => this.#handler.onParserDrain());
         parser.on("error", (err) => this.#handler.onParserError(err));
         this.#parser = parser;
@@ -55463,7 +55417,6 @@ var require_websocketerror = __commonJS({
 var require_websocketstream = __commonJS({
   "node_modules/undici/lib/web/websocket/stream/websocketstream.js"(exports, module) {
     "use strict";
-    var { createDeferredPromise } = require_promise();
     var { environmentSettingsObject } = require_util2();
     var { states, opcodes, sentCloseFrameState } = require_constants6();
     var { webidl } = require_webidl();
@@ -55481,10 +55434,10 @@ var require_websocketstream = __commonJS({
       /** @type {URL} */
       #url;
       // Each WebSocketStream object has an associated opened promise , which is a promise.
-      /** @type {import('../../../util/promise').DeferredPromise} */
+      /** @type {ReturnType<typeof Promise.withResolvers>} */
       #openedPromise;
       // Each WebSocketStream object has an associated closed promise , which is a promise.
-      /** @type {import('../../../util/promise').DeferredPromise} */
+      /** @type {ReturnType<typeof Promise.withResolvers>} */
       #closedPromise;
       // Each WebSocketStream object has an associated readable stream , which is a ReadableStream .
       /** @type {ReadableStream} */
@@ -55550,8 +55503,8 @@ var require_websocketstream = __commonJS({
           throw new DOMException("Invalid Sec-WebSocket-Protocol value", "SyntaxError");
         }
         this.#url = urlRecord.toString();
-        this.#openedPromise = createDeferredPromise();
-        this.#closedPromise = createDeferredPromise();
+        this.#openedPromise = Promise.withResolvers();
+        this.#closedPromise = Promise.withResolvers();
         if (options.signal != null) {
           const signal = options.signal;
           if (signal.aborted) {
@@ -55601,7 +55554,7 @@ var require_websocketstream = __commonJS({
       }
       #write(chunk) {
         chunk = webidl.converters.WebSocketStreamWrite(chunk);
-        const promise = createDeferredPromise();
+        const promise = Promise.withResolvers();
         let data = null;
         let opcode = null;
         if (webidl.is.BufferSource(chunk)) {
@@ -56429,12 +56382,12 @@ var require_undici = __commonJS({
           }
           url = util2.parseURL(url);
         }
-        const { agent, dispatcher = getGlobalDispatcher() } = opts;
+        const { agent, dispatcher = getGlobalDispatcher(), ...restOpts } = opts;
         if (agent) {
           throw new InvalidArgumentError("unsupported opts.agent. Did you mean opts.client?");
         }
         return fn.call(dispatcher, {
-          ...opts,
+          ...restOpts,
           origin: url.origin,
           path: url.search ? `${url.pathname}${url.search}` : url.pathname,
           method: opts.method || (opts.body ? "PUT" : "GET")
@@ -57865,9 +57818,28 @@ var MODEL_ALIASES = {
   "glm-5-turbo": "zai/glm-5-turbo",
   // Routing profile aliases (common variations)
   "auto-router": "auto",
-  router: "auto"
+  router: "auto",
   // Note: auto, eco, premium are virtual routing profiles registered in BLOCKRUN_MODELS
   // They don't need aliases since they're already top-level model IDs
+  // Image generation
+  dalle: "openai/dall-e-3",
+  "dall-e": "openai/dall-e-3",
+  "gpt-image": "openai/gpt-image-1",
+  "nano-banana": "google/nano-banana",
+  banana: "google/nano-banana",
+  "banana-pro": "google/nano-banana-pro",
+  "nano-banana-pro": "google/nano-banana-pro",
+  flux: "black-forest/flux-1.1-pro",
+  "flux-pro": "black-forest/flux-1.1-pro",
+  "grok-imagine": "xai/grok-imagine-image",
+  "grok-imagine-pro": "xai/grok-imagine-image-pro",
+  cogview: "zai/cogview-4",
+  // Video generation
+  "grok-video": "xai/grok-imagine-video",
+  seedance: "bytedance/seedance-1.5-pro",
+  "seedance-1.5": "bytedance/seedance-1.5-pro",
+  "seedance-2-fast": "bytedance/seedance-2.0-fast",
+  "seedance-2": "bytedance/seedance-2.0"
 };
 function resolveModelAlias(model) {
   const normalized = model.trim().toLowerCase();
@@ -77243,7 +77215,10 @@ var IMAGE_PRICING = {
   }
 };
 var VIDEO_PRICING = {
-  "xai/grok-imagine-video": { pricePerSecond: 0.05, defaultDurationSeconds: 8 }
+  "xai/grok-imagine-video": { pricePerSecond: 0.05, defaultDurationSeconds: 8 },
+  "bytedance/seedance-1.5-pro": { pricePerSecond: 0.03, defaultDurationSeconds: 5 },
+  "bytedance/seedance-2.0-fast": { pricePerSecond: 0.15, defaultDurationSeconds: 5 },
+  "bytedance/seedance-2.0": { pricePerSecond: 0.3, defaultDurationSeconds: 5 }
 };
 function estimateVideoCost(model, durationSeconds) {
   const p = VIDEO_PRICING[model];
@@ -77969,29 +77944,91 @@ async function startProxy(options) {
         } catch {
         }
         try {
-          const upstream = await payFetch(`${apiBase}/v1/videos/generations`, {
+          const submitResp = await payFetch(`${apiBase}/v1/videos/generations`, {
             method: "POST",
             headers: { "content-type": "application/json", "user-agent": USER_AGENT },
             body: reqBody
           });
-          const text = await upstream.text();
-          if (!upstream.ok) {
-            res.writeHead(upstream.status, { "Content-Type": "application/json" });
-            res.end(text);
+          const submitText = await submitResp.text();
+          if (!submitResp.ok && submitResp.status !== 202) {
+            res.writeHead(submitResp.status, { "Content-Type": "application/json" });
+            res.end(submitText);
             return;
           }
-          let result;
+          let submitResult;
           try {
-            result = JSON.parse(text);
+            submitResult = JSON.parse(submitText);
           } catch {
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(text);
+            res.end(submitText);
             return;
           }
-          if (result.data?.length) {
+          let finalResult = submitResult;
+          if (submitResult.poll_url && submitResult.id) {
+            const apiOrigin = new URL(apiBase).origin;
+            const pollUrl = submitResult.poll_url.startsWith("http") ? submitResult.poll_url : `${apiOrigin}${submitResult.poll_url}`;
+            console.log(
+              `[ClawRouter] Video job submitted (id=${submitResult.id}), polling upstream \u2014 typical 60\u2013180s...`
+            );
+            const pollDeadline = Date.now() + 3e5;
+            const pollInterval = 5e3;
+            await new Promise((r) => setTimeout(r, 3e3));
+            let pollError;
+            while (Date.now() < pollDeadline) {
+              const pollResp = await payFetch(pollUrl, {
+                method: "GET",
+                headers: { "user-agent": USER_AGENT }
+              });
+              const pollText = await pollResp.text();
+              let pollBody = {};
+              try {
+                pollBody = JSON.parse(pollText);
+              } catch {
+                pollError = `Non-JSON poll response (${pollResp.status}): ${pollText.slice(0, 200)}`;
+                break;
+              }
+              if (pollResp.status === 202 || pollBody.status === "queued" || pollBody.status === "in_progress") {
+                await new Promise((r) => setTimeout(r, pollInterval));
+                continue;
+              }
+              if (pollBody.status === "failed") {
+                pollError = pollBody.error ?? "Upstream video generation failed";
+                break;
+              }
+              if (pollResp.ok && pollBody.status === "completed") {
+                finalResult = pollBody;
+                break;
+              }
+              if (!pollResp.ok) {
+                res.writeHead(pollResp.status, { "Content-Type": "application/json" });
+                res.end(pollText);
+                return;
+              }
+              finalResult = pollBody;
+              break;
+            }
+            if (pollError) {
+              res.writeHead(502, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({ error: "Video generation failed", details: pollError })
+              );
+              return;
+            }
+            if (!finalResult.data) {
+              res.writeHead(504, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  error: "Video generation timed out",
+                  details: `Upstream did not complete within 5 minutes (job id=${submitResult.id}). No payment has been settled.`
+                })
+              );
+              return;
+            }
+          }
+          if (finalResult.data?.length) {
             await mkdir3(VIDEO_DIR, { recursive: true });
             const port2 = server.address()?.port ?? 8402;
-            for (const clip of result.data) {
+            for (const clip of finalResult.data) {
               if (clip.url?.startsWith("https://") || clip.url?.startsWith("http://")) {
                 try {
                   const videoResp = await fetch(clip.url);
@@ -78024,7 +78061,7 @@ async function startProxy(options) {
           }).catch(() => {
           });
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
+          res.end(JSON.stringify(finalResult));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[ClawRouter] Video generation error: ${msg}`);
@@ -78035,7 +78072,7 @@ async function startProxy(options) {
         }
         return;
       }
-      if (req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)) {
+      if (req.url?.match(/^\/v1\/(?:partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)) {
         try {
           await proxyPaidApiRequest(
             req,
@@ -80498,32 +80535,6 @@ init_accounts();
 
 // src/partners/registry.ts
 var PARTNER_SERVICES = [
-  {
-    id: "x_users_lookup",
-    name: "Twitter/X User Lookup",
-    partner: "AttentionVC",
-    description: "Look up real-time Twitter/X user profiles by username. Call this ONLY when the user explicitly asks to look up, check, or get information about a specific Twitter/X user's profile (follower count, bio, verification status, etc.). Do NOT call this for messages that merely contain x.com or twitter.com URLs \u2014 only invoke when the user is asking for profile information about a specific account. Returns: follower count, verification badge, bio, location, join date. Accepts up to 100 usernames per request (without @ prefix).",
-    proxyPath: "/x/users/lookup",
-    method: "POST",
-    params: [
-      {
-        name: "usernames",
-        type: "string[]",
-        description: 'Array of Twitter/X usernames to look up (without @ prefix). Example: ["elonmusk", "naval"]',
-        required: true
-      }
-    ],
-    pricing: {
-      perUnit: "$0.001",
-      unit: "user",
-      minimum: "$0.01 (10 users)",
-      maximum: "$0.10 (100 users)"
-    },
-    example: {
-      input: { usernames: ["elonmusk", "naval", "balaboris"] },
-      description: "Look up 3 Twitter/X user profiles"
-    }
-  },
   // ---------------------------------------------------------------------------
   // Predexon — Prediction Market Data
   // ---------------------------------------------------------------------------
@@ -80531,6 +80542,8 @@ var PARTNER_SERVICES = [
     id: "predexon_events",
     name: "Polymarket Events",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Live Polymarket events",
     description: "Get live Polymarket prediction market events with current odds, volume, and liquidity. Call this for ANY request about prediction markets, Polymarket markets, current odds, what people are betting on, or market sentiment. Do NOT use browser or web scraping \u2014 this returns structured real-time data directly. Returns: event title, YES/NO prices (implied probability), volume, liquidity, end date.",
     proxyPath: "/pm/polymarket/events",
     method: "GET",
@@ -80558,6 +80571,8 @@ var PARTNER_SERVICES = [
     id: "predexon_leaderboard",
     name: "Polymarket Leaderboard",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Top traders ranked by profit",
     description: "Get the Polymarket leaderboard of top traders ranked by profit. Call this for ANY request about top Polymarket traders, whale wallets, best performers, richest traders, or who is making the most money on Polymarket. Do NOT use browser or web scraping \u2014 this returns structured data directly. Returns: wallet address/username, total profit, total volume, win rate.",
     proxyPath: "/pm/polymarket/leaderboard",
     method: "GET",
@@ -80579,6 +80594,8 @@ var PARTNER_SERVICES = [
     id: "predexon_markets",
     name: "Polymarket Markets Search",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Market search by keyword",
     description: "Search and filter Polymarket markets. Use this to find a market by keyword and get its conditionId for follow-up calls (smart money, top holders, etc.). Returns: question, conditionId, YES/NO prices, volume.",
     proxyPath: "/pm/polymarket/markets",
     method: "GET",
@@ -80606,6 +80623,8 @@ var PARTNER_SERVICES = [
     id: "predexon_smart_money",
     name: "Polymarket Smart Money",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Smart-money positions on a market",
     description: "See how high-performing wallets are positioned on a specific Polymarket market. Use this after finding a market's conditionId via predexon_markets or predexon_events. Returns: wallet addresses, their YES/NO positions, size, P&L, win rate.",
     proxyPath: "/pm/polymarket/market/:condition_id/smart-money",
     method: "GET",
@@ -80633,6 +80652,8 @@ var PARTNER_SERVICES = [
     id: "predexon_smart_activity",
     name: "Polymarket Smart Activity",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Where smart money is flowing now",
     description: "Discover which Polymarket markets high-performing wallets are currently active in. Use this to find where smart money is flowing right now. Returns: market titles, smart money volume, number of smart wallets active.",
     proxyPath: "/pm/polymarket/markets/smart-activity",
     method: "GET",
@@ -80654,6 +80675,8 @@ var PARTNER_SERVICES = [
     id: "predexon_wallet",
     name: "Polymarket Wallet Profile",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Wallet profile (PnL, winrate, positions)",
     description: "Get a complete profile for a Polymarket wallet address: profit, volume, win rate, markets traded, open positions. Use this when the user asks to analyze or look up a specific wallet address.",
     proxyPath: "/pm/polymarket/wallet/:wallet",
     method: "GET",
@@ -80675,6 +80698,8 @@ var PARTNER_SERVICES = [
     id: "predexon_wallet_pnl",
     name: "Polymarket Wallet P&L",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Wallet P&L time series",
     description: "Get P&L history and realized profit/loss time series for a Polymarket wallet. Use this when the user wants to see how a wallet has performed over time.",
     proxyPath: "/pm/polymarket/wallet/pnl/:wallet",
     method: "GET",
@@ -80696,6 +80721,8 @@ var PARTNER_SERVICES = [
     id: "predexon_matching_markets",
     name: "Cross-Market Matching (Polymarket vs Kalshi)",
     partner: "Predexon",
+    category: "Prediction markets",
+    shortDescription: "Polymarket \u2194 Kalshi market pairs",
     description: "Find equivalent markets across Polymarket and Kalshi to compare odds and spot arbitrage. Use this when the user wants to compare prediction market prices across platforms.",
     proxyPath: "/pm/matching-markets",
     method: "GET",
@@ -80720,6 +80747,8 @@ var PARTNER_SERVICES = [
     id: "stock_price",
     name: "Global Stock Realtime Price",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "Realtime stock quote (12 markets)",
     description: "Get realtime price for a listed equity across 12 global markets. Call this for ANY request about a specific stock price, quote, or current trading value on NYSE/Nasdaq, HKEX, TSE, KRX, LSE, XETRA, Euronext, Shanghai/Shenzhen, or Toronto. Do NOT use browser or web scraping \u2014 this returns structured real-time data directly. Returns: symbol, price, confidence interval, publish time, feed ID.",
     proxyPath: "/stocks/:market/price/:symbol",
     method: "GET",
@@ -80753,6 +80782,8 @@ var PARTNER_SERVICES = [
     id: "stock_history",
     name: "Global Stock OHLC History",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "OHLC bars (1m\u2013monthly)",
     description: "Get historical OHLC (candlestick) bars for a listed equity across 12 global markets. Use this for charting, backtesting, or any request about a stock's past price action. Supports resolutions: 1, 5, 15, 60, 240 (minutes) and D, W, M (daily/weekly/monthly). Returns: OHLC arrays (open, high, low, close, volume, timestamps).",
     proxyPath: "/stocks/:market/history/:symbol",
     method: "GET",
@@ -80798,6 +80829,8 @@ var PARTNER_SERVICES = [
     id: "stock_list",
     name: "Global Stock Ticker List",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "Ticker search \u2014 free",
     description: "List and search supported tickers for a given stock market. Use this to resolve a company name to a ticker before calling stock_price or stock_history. FREE \u2014 no x402 payment.",
     proxyPath: "/stocks/:market/list",
     method: "GET",
@@ -80831,6 +80864,8 @@ var PARTNER_SERVICES = [
     id: "crypto_price",
     name: "Crypto Realtime Price",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "Realtime crypto price \u2014 free",
     description: "Get realtime crypto price. Call this for ANY request about current crypto prices (BTC, ETH, SOL, etc.). FREE \u2014 no x402 payment. Quote is always USD. Do NOT use browser or web scraping \u2014 this returns structured real-time data directly.",
     proxyPath: "/crypto/price/:symbol",
     method: "GET",
@@ -80852,6 +80887,8 @@ var PARTNER_SERVICES = [
     id: "fx_price",
     name: "Foreign Exchange Realtime Price",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "Realtime FX rate \u2014 free",
     description: "Get realtime FX rate. Call this for ANY request about currency exchange rates. FREE \u2014 no x402 payment. Do NOT use browser or web scraping.",
     proxyPath: "/fx/price/:symbol",
     method: "GET",
@@ -80873,6 +80910,8 @@ var PARTNER_SERVICES = [
     id: "commodity_price",
     name: "Commodity Realtime Price",
     partner: "BlockRun",
+    category: "Market data",
+    shortDescription: "Realtime commodity spot \u2014 free",
     description: "Get realtime commodity spot price (gold, silver, platinum, etc.). FREE \u2014 no x402 payment. Do NOT use browser or web scraping.",
     proxyPath: "/commodity/price/:symbol",
     method: "GET",
@@ -80888,6 +80927,135 @@ var PARTNER_SERVICES = [
     example: {
       input: { symbol: "XAU-USD" },
       description: "Get realtime gold spot price"
+    }
+  },
+  // ---------------------------------------------------------------------------
+  // BlockRun — Image & Video generation
+  // ---------------------------------------------------------------------------
+  {
+    id: "image_generation",
+    name: "Image Generation",
+    partner: "BlockRun",
+    category: "Image & Video",
+    shortDescription: "8 image models (DALL-E, Flux, Grok, ...)",
+    description: "Generate an image from a text prompt. Models available: google/nano-banana (default), google/nano-banana-pro (up to 4K), openai/gpt-image-1, openai/dall-e-3, black-forest/flux-1.1-pro, xai/grok-imagine-image, xai/grok-imagine-image-pro, zai/cogview-4. Returns a local http://localhost:8402/images/<file>.png URL.",
+    proxyPath: "/images/generations",
+    method: "POST",
+    params: [
+      {
+        name: "prompt",
+        type: "string",
+        description: "Text prompt describing the desired image.",
+        required: true
+      },
+      {
+        name: "model",
+        type: "string",
+        description: "Full model ID (e.g. 'google/nano-banana', 'openai/dall-e-3'). Default: google/nano-banana.",
+        required: false
+      },
+      {
+        name: "size",
+        type: "string",
+        description: "Image size, e.g. '1024x1024', '1792x1024', '4096x4096'. Model-dependent \u2014 see image model table.",
+        required: false
+      },
+      {
+        name: "n",
+        type: "number",
+        description: "Number of images to generate (default 1, max 4).",
+        required: false
+      }
+    ],
+    pricing: {
+      perUnit: "$0.015\u2013$0.15",
+      unit: "image",
+      minimum: "$0.015 (cogview-4)",
+      maximum: "$0.15 (nano-banana-pro 4K)"
+    },
+    example: {
+      input: { model: "google/nano-banana", prompt: "a golden retriever surfing on a wave" },
+      description: "Generate an image with Nano Banana"
+    }
+  },
+  {
+    id: "image_edit",
+    name: "Image Edit / Inpainting",
+    partner: "BlockRun",
+    category: "Image & Video",
+    shortDescription: "Edit existing image (gpt-image-1)",
+    description: "Edit or re-style an existing image via openai/gpt-image-1. Supply `image` as a data URI, https URL, or local file path; optional `mask` for inpainting.",
+    proxyPath: "/images/image2image",
+    method: "POST",
+    params: [
+      {
+        name: "prompt",
+        type: "string",
+        description: "Text prompt describing how to edit the image.",
+        required: true
+      },
+      {
+        name: "image",
+        type: "string",
+        description: "Source image \u2014 data URI, https URL, or local path (~/... or /abs/path).",
+        required: true
+      },
+      {
+        name: "mask",
+        type: "string",
+        description: "Optional inpainting mask in the same formats as `image`.",
+        required: false
+      }
+    ],
+    pricing: {
+      perUnit: "$0.02\u2013$0.04",
+      unit: "image",
+      minimum: "$0.02",
+      maximum: "$0.04 (1536x1024)"
+    },
+    example: {
+      input: { prompt: "make the sky sunset orange", image: "~/Pictures/beach.png" },
+      description: "Edit a local image with gpt-image-1"
+    }
+  },
+  {
+    id: "video_generation",
+    name: "Video Generation",
+    partner: "BlockRun",
+    category: "Image & Video",
+    shortDescription: "Grok Imagine + Seedance, 5\u201310s",
+    description: "Generate a short video (5\u201310s) via xai/grok-imagine-video or bytedance/seedance-1.5-pro (default, cheapest) / seedance-2.0-fast / seedance-2.0. Async \u2014 upstream polling takes 30\u2013120 seconds. Returns a local http://localhost:8402/videos/<file>.mp4 URL.",
+    proxyPath: "/videos/generations",
+    method: "POST",
+    params: [
+      {
+        name: "prompt",
+        type: "string",
+        description: "Text prompt describing the video.",
+        required: true
+      },
+      {
+        name: "model",
+        type: "string",
+        description: "Full model ID. Options: bytedance/seedance-1.5-pro (default), bytedance/seedance-2.0-fast, bytedance/seedance-2.0, xai/grok-imagine-video.",
+        required: false
+      },
+      {
+        name: "duration_seconds",
+        type: "number",
+        description: "Clip length in seconds. Supported: 5, 8, 10. Default depends on model.",
+        required: false
+      }
+    ],
+    pricing: {
+      perUnit: "$0.03\u2013$0.30",
+      unit: "second",
+      minimum: "$0.15 (seedance-1.5-pro 5s)",
+      maximum: "$3.00 (seedance-2.0 10s)"
+    },
+    example: {
+      input: { model: "bytedance/seedance-1.5-pro", prompt: "a cat waving", duration_seconds: 5 },
+      description: "Generate a 5-second Seedance video"
     }
   }
 ];
@@ -82039,16 +82207,48 @@ function startProxyAfterPortProbe(api, startupGeneration) {
 }
 var IMAGE_DIR2 = join10(homedir7(), ".openclaw", "blockrun", "images");
 var AUDIO_DIR2 = join10(homedir7(), ".openclaw", "blockrun", "audio");
+function parseGenArgs(raw) {
+  const promptParts = [];
+  let model;
+  let size5;
+  let n;
+  let duration;
+  const tokens = raw.trim().match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+  for (const tok of tokens) {
+    const t = tok.startsWith('"') && tok.endsWith('"') ? tok.slice(1, -1) : tok;
+    const flagMatch = t.match(/^--(model|size|n|count|duration|duration_seconds)=(.+)$/);
+    if (flagMatch) {
+      const [, key, value] = flagMatch;
+      if (key === "model") model = value;
+      else if (key === "size") size5 = value;
+      else if (key === "n" || key === "count") n = Number(value);
+      else if (key === "duration" || key === "duration_seconds") duration = Number(value);
+      continue;
+    }
+    promptParts.push(t);
+  }
+  return {
+    prompt: promptParts.join(" ").trim(),
+    model,
+    size: size5,
+    ...Number.isFinite(n) ? { n } : {},
+    ...Number.isFinite(duration) ? { duration } : {}
+  };
+}
 function buildImageGenerationProvider() {
   return {
     id: "blockrun",
     label: "BlockRun",
-    defaultModel: "openai/gpt-image-1",
+    defaultModel: "google/nano-banana",
     models: [
+      "google/nano-banana",
+      "google/nano-banana-pro",
       "openai/gpt-image-1",
       "openai/dall-e-3",
-      "google/nano-banana",
-      "google/nano-banana-pro"
+      "black-forest/flux-1.1-pro",
+      "xai/grok-imagine-image",
+      "xai/grok-imagine-image-pro",
+      "zai/cogview-4"
     ],
     capabilities: {
       generate: {
@@ -82057,10 +82257,18 @@ function buildImageGenerationProvider() {
         supportsAspectRatio: false,
         supportsResolution: false
       },
-      edit: { enabled: false },
+      // Only openai/gpt-image-1 supports edit server-side; OpenClaw's UI picks a
+      // compatible model at edit time via /v1/images/image2image.
+      edit: { enabled: true },
       geometry: {
         sizes: [
+          "512x512",
+          "768x768",
+          "768x1344",
           "1024x1024",
+          "1216x832",
+          "1344x768",
+          "1440x1440",
           "1536x1024",
           "1024x1536",
           "1792x1024",
@@ -82176,18 +82384,23 @@ function buildVideoGenerationProvider() {
     id: "blockrun",
     label: "BlockRun",
     defaultModel: "xai/grok-imagine-video",
-    models: ["xai/grok-imagine-video"],
+    models: [
+      "xai/grok-imagine-video",
+      "bytedance/seedance-1.5-pro",
+      "bytedance/seedance-2.0-fast",
+      "bytedance/seedance-2.0"
+    ],
     capabilities: {
       maxVideos: 1,
       maxInputImages: 1,
-      maxDurationSeconds: 8,
-      supportedDurationSeconds: [8],
+      maxDurationSeconds: 10,
+      supportedDurationSeconds: [5, 8, 10],
       supportsAudio: false,
       imageToVideo: {
         enabled: true,
         maxInputImages: 1,
-        maxDurationSeconds: 8,
-        supportedDurationSeconds: [8]
+        maxDurationSeconds: 10,
+        supportedDurationSeconds: [5, 8, 10]
       }
     },
     isConfigured: () => existsSync3(WALLET_FILE),
@@ -82200,7 +82413,7 @@ function buildVideoGenerationProvider() {
         ...imageUrl ? { image_url: imageUrl } : {},
         ...req.durationSeconds ? { duration_seconds: req.durationSeconds } : {}
       });
-      const timeoutMs = req.timeoutMs ?? 2e5;
+      const timeoutMs = req.timeoutMs ?? 33e4;
       const resp = await fetch(`http://127.0.0.1:${port}/v1/videos/generations`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -82597,20 +82810,135 @@ var plugin = {
         if (PARTNER_SERVICES.length === 0) {
           return { text: "No partner APIs available." };
         }
-        const lines = ["**Partner APIs** (paid via your ClawRouter wallet)", ""];
+        const byCategory = /* @__PURE__ */ new Map();
         for (const svc of PARTNER_SERVICES) {
-          lines.push(`**${svc.name}** (${svc.partner})`);
-          lines.push(`  ${svc.description}`);
-          lines.push(`  Tool: \`${`blockrun_${svc.id}`}\``);
-          lines.push(
-            `  Pricing: ${svc.pricing.perUnit} per ${svc.pricing.unit} (min ${svc.pricing.minimum}, max ${svc.pricing.maximum})`
-          );
-          lines.push(
-            `  **How to use:** Ask "Look up Twitter user @elonmusk" or "Get info on these X accounts: @naval, @balajis"`
-          );
+          const bucket = byCategory.get(svc.category) ?? [];
+          bucket.push(svc);
+          byCategory.set(svc.category, bucket);
+        }
+        const toolWidth = Math.max(
+          ...PARTNER_SERVICES.map((s3) => `blockrun_${s3.id}`.length),
+          28
+        );
+        const priceWidth = Math.max(
+          ...PARTNER_SERVICES.map(
+            (s3) => s3.pricing.perUnit === "free" ? 4 : `${s3.pricing.perUnit}/${s3.pricing.unit}`.length
+          ),
+          12
+        );
+        const lines = ["**Partner APIs** (paid via your ClawRouter wallet)", ""];
+        for (const [category, services] of byCategory) {
+          lines.push(`**${category}**`);
+          for (const svc of services) {
+            const tool = `blockrun_${svc.id}`.padEnd(toolWidth);
+            const price = (svc.pricing.perUnit === "free" ? "free" : `${svc.pricing.perUnit}/${svc.pricing.unit}`).padEnd(priceWidth);
+            lines.push(`  \`${tool}\` ${price}  ${svc.shortDescription}`);
+          }
           lines.push("");
         }
+        lines.push("Tool-call any of these in chat, or use `/imagegen` / `/videogen` directly.");
         return { text: lines.join("\n") };
+      }
+    });
+    api.registerCommand({
+      name: "imagegen",
+      description: "Generate an image (BlockRun image models, paid via wallet)",
+      acceptsArgs: true,
+      requireAuth: false,
+      handler: async (ctx) => {
+        const parsed = parseGenArgs(ctx.args ?? "");
+        if (!parsed.prompt) {
+          return {
+            text: "Usage: `/imagegen <prompt> [--model=<alias>] [--size=1024x1024] [--n=1]`\n\nAliases: `nano-banana` (default), `banana-pro`, `dalle`, `gpt-image`, `flux`, `grok-imagine`, `grok-imagine-pro`, `cogview`."
+          };
+        }
+        const model = resolveModelAlias(parsed.model ?? "nano-banana");
+        const port = getProxyPort();
+        try {
+          const resp = await fetch(`http://127.0.0.1:${port}/v1/images/generations`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              model,
+              prompt: parsed.prompt,
+              size: parsed.size ?? "1024x1024",
+              n: parsed.n ?? 1
+            }),
+            signal: AbortSignal.timeout(18e4)
+          });
+          if (!resp.ok) {
+            const errText = await resp.text().catch(() => "");
+            if (resp.status === 402) {
+              return {
+                text: `Insufficient wallet balance for image generation. Top up with \`/wallet\`.
+
+${errText}`
+              };
+            }
+            return { text: `Image generation failed (${resp.status}): ${errText}` };
+          }
+          const result = await resp.json();
+          const urls = (result.data ?? []).map((d) => d.url).filter(Boolean);
+          if (urls.length === 0) {
+            return { text: "Image generation returned no results." };
+          }
+          return {
+            text: urls.map((u, i) => `![image ${i + 1}](${u})`).join("\n\n")
+          };
+        } catch (err) {
+          return {
+            text: `Image generation error: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    });
+    api.registerCommand({
+      name: "videogen",
+      description: "Generate a short video (Grok Imagine / Seedance, paid via wallet)",
+      acceptsArgs: true,
+      requireAuth: false,
+      handler: async (ctx) => {
+        const parsed = parseGenArgs(ctx.args ?? "");
+        if (!parsed.prompt) {
+          return {
+            text: "Usage: `/videogen <prompt> [--model=<alias>] [--duration=5|8|10]`\n\nAliases: `seedance` (1.5-pro, default \u2014 cheapest), `seedance-2-fast`, `seedance-2`, `grok-video`.\n\n\u23F1\uFE0F  Generation takes 60\u2013180 seconds. Payment settles only on success."
+          };
+        }
+        const model = resolveModelAlias(parsed.model ?? "seedance");
+        const port = getProxyPort();
+        try {
+          const resp = await fetch(`http://127.0.0.1:${port}/v1/videos/generations`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              model,
+              prompt: parsed.prompt,
+              ...parsed.duration ? { duration_seconds: parsed.duration } : {}
+            }),
+            signal: AbortSignal.timeout(33e4)
+          });
+          if (!resp.ok) {
+            const errText = await resp.text().catch(() => "");
+            if (resp.status === 402) {
+              return {
+                text: `Insufficient wallet balance for video generation. Top up with \`/wallet\`.
+
+${errText}`
+              };
+            }
+            return { text: `Video generation failed (${resp.status}): ${errText}` };
+          }
+          const result = await resp.json();
+          const urls = (result.data ?? []).map((d) => d.url).filter(Boolean);
+          if (urls.length === 0) {
+            return { text: "Video generation returned no results." };
+          }
+          return { text: urls.map((u, i) => `Video ${i + 1}: ${u}`).join("\n") };
+        } catch (err) {
+          return {
+            text: `Video generation error: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
       }
     });
     api.registerCommand(createWalletCommand(api));
@@ -82623,7 +82951,9 @@ var plugin = {
     api.registerCommand(createStatsCommand());
     api.registerCommand(createExcludeCommand());
     if (shouldLogRegistration) {
-      api.logger.info("Commands registered: /wallet, /blockrun, /stats, /exclude");
+      api.logger.info(
+        "Commands registered: /wallet, /blockrun, /stats, /exclude, /partners, /imagegen, /videogen"
+      );
     }
     api.registerService({
       id: "clawrouter-proxy",

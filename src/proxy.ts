@@ -1493,7 +1493,7 @@ function estimateImageCost(model: string, size?: string, n: number = 1): number 
 /**
  * Proxy a paid BlockRun data request through x402 payment flow.
  *
- * Used for partner endpoints (/v1/x/*, /v1/partner/*, /v1/pm/*), market data
+ * Used for partner endpoints (/v1/partner/*, /v1/pm/*), market data
  * (/v1/stocks/*, /v1/usstock/*, /v1/crypto/*, /v1/fx/*, /v1/commodity/*),
  * and wallet-backed data tools such as BlockRun Exa (/v1/exa/*). No smart routing,
  * SSE, compression, or sessions — just collect body, forward via payFetch
@@ -2389,8 +2389,13 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         return;
       }
 
-      // --- Handle /v1/videos/generations: proxy with x402 + save MP4 locally ---
-      // Upstream (xAI) polls async; this handler may take 30-120s.
+      // --- Handle /v1/videos/generations: async submit + poll ---
+      // Server protocol (BlockRun 2026-04-23+):
+      //   POST /v1/videos/generations        → 202 { id, poll_url }  (payment verified, not settled)
+      //   GET  /v1/videos/generations/{id}   → 202 while queued/in_progress, 200 on completed
+      //                                        (settles on the first completed poll)
+      // We collapse this back into a single blocking POST for the client — upstream
+      // polling happens server-side and the client sees one HTTP round-trip.
       if (req.url === "/v1/videos/generations" && req.method === "POST") {
         const videoStartTime = Date.now();
         const chunks: Buffer[] = [];
@@ -2409,34 +2414,113 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
           /* use defaults */
         }
         try {
-          const upstream = await payFetch(`${apiBase}/v1/videos/generations`, {
+          // Step 1: submit job. Server returns 202 with poll_url.
+          const submitResp = await payFetch(`${apiBase}/v1/videos/generations`, {
             method: "POST",
             headers: { "content-type": "application/json", "user-agent": USER_AGENT },
             body: reqBody,
           });
-          const text = await upstream.text();
-          if (!upstream.ok) {
-            res.writeHead(upstream.status, { "Content-Type": "application/json" });
-            res.end(text);
+          const submitText = await submitResp.text();
+          if (!submitResp.ok && submitResp.status !== 202) {
+            res.writeHead(submitResp.status, { "Content-Type": "application/json" });
+            res.end(submitText);
             return;
           }
-          let result: {
+          let submitResult: {
+            id?: string;
+            poll_url?: string;
+            status?: string;
+            // Legacy (pre-2026-04-23) servers still return the final result directly.
             created?: number;
             model?: string;
             data?: Array<{ url?: string; duration_seconds?: number; backed_up?: boolean }>;
           };
           try {
-            result = JSON.parse(text);
+            submitResult = JSON.parse(submitText);
           } catch {
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(text);
+            res.end(submitText);
             return;
           }
-          // Download video from remote URL and save locally
-          if (result.data?.length) {
+
+          // Step 2: if no poll_url, upstream responded with the final result (legacy server) —
+          // drop through to the same local-caching path as before.
+          let finalResult: typeof submitResult = submitResult;
+          if (submitResult.poll_url && submitResult.id) {
+            const apiOrigin = new URL(apiBase).origin;
+            const pollUrl = submitResult.poll_url.startsWith("http")
+              ? submitResult.poll_url
+              : `${apiOrigin}${submitResult.poll_url}`;
+            console.log(
+              `[ClawRouter] Video job submitted (id=${submitResult.id}), polling upstream — typical 60–180s...`,
+            );
+
+            // Upstream typically 60-180s. Poll every 5s, bail after ~5min total.
+            // Auth is 10min per server config; we stop before that.
+            const pollDeadline = Date.now() + 300_000;
+            const pollInterval = 5_000;
+            // Small initial delay so the upstream has a chance to start.
+            await new Promise((r) => setTimeout(r, 3_000));
+            let pollError: string | undefined;
+            while (Date.now() < pollDeadline) {
+              const pollResp = await payFetch(pollUrl, {
+                method: "GET",
+                headers: { "user-agent": USER_AGENT },
+              });
+              const pollText = await pollResp.text();
+              let pollBody: typeof submitResult & { error?: string } = {};
+              try {
+                pollBody = JSON.parse(pollText);
+              } catch {
+                pollError = `Non-JSON poll response (${pollResp.status}): ${pollText.slice(0, 200)}`;
+                break;
+              }
+              if (pollResp.status === 202 || pollBody.status === "queued" || pollBody.status === "in_progress") {
+                await new Promise((r) => setTimeout(r, pollInterval));
+                continue;
+              }
+              if (pollBody.status === "failed") {
+                pollError = pollBody.error ?? "Upstream video generation failed";
+                break;
+              }
+              if (pollResp.ok && pollBody.status === "completed") {
+                finalResult = pollBody;
+                break;
+              }
+              // Any other non-OK: surface it.
+              if (!pollResp.ok) {
+                res.writeHead(pollResp.status, { "Content-Type": "application/json" });
+                res.end(pollText);
+                return;
+              }
+              // OK but no known status — treat as final and hand through.
+              finalResult = pollBody;
+              break;
+            }
+            if (pollError) {
+              res.writeHead(502, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({ error: "Video generation failed", details: pollError }),
+              );
+              return;
+            }
+            if (!finalResult.data) {
+              res.writeHead(504, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  error: "Video generation timed out",
+                  details: `Upstream did not complete within 5 minutes (job id=${submitResult.id}). No payment has been settled.`,
+                }),
+              );
+              return;
+            }
+          }
+
+          // Step 3: download any hosted URLs to local disk + rewrite to localhost.
+          if (finalResult.data?.length) {
             await mkdir(VIDEO_DIR, { recursive: true });
             const port = (server.address() as AddressInfo | null)?.port ?? 8402;
-            for (const clip of result.data) {
+            for (const clip of finalResult.data) {
               if (clip.url?.startsWith("https://") || clip.url?.startsWith("http://")) {
                 try {
                   const videoResp = await fetch(clip.url);
@@ -2473,7 +2557,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
             latencyMs: Date.now() - videoStartTime,
           }).catch(() => {});
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
+          res.end(JSON.stringify(finalResult));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[ClawRouter] Video generation error: ${msg}`);
@@ -2485,10 +2569,10 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
         return;
       }
 
-      // --- Handle paid API paths (/v1/x/*, /v1/partner/*, /v1/pm/*, /v1/exa/*, /v1/modal/*,
+      // --- Handle paid API paths (/v1/partner/*, /v1/pm/*, /v1/exa/*, /v1/modal/*,
       // /v1/stocks/*, /v1/usstock/*, /v1/crypto/*, /v1/fx/*, /v1/commodity/*) ---
       if (
-        req.url?.match(/^\/v1\/(?:x|partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)
+        req.url?.match(/^\/v1\/(?:partner|pm|exa|modal|stocks|usstock|crypto|fx|commodity)\//)
       ) {
         try {
           await proxyPaidApiRequest(

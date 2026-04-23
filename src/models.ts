@@ -157,6 +157,27 @@ export const MODEL_ALIASES: Record<string, string> = {
 
   // Note: auto, eco, premium are virtual routing profiles registered in BLOCKRUN_MODELS
   // They don't need aliases since they're already top-level model IDs
+
+  // Image generation
+  dalle: "openai/dall-e-3",
+  "dall-e": "openai/dall-e-3",
+  "gpt-image": "openai/gpt-image-1",
+  "nano-banana": "google/nano-banana",
+  banana: "google/nano-banana",
+  "banana-pro": "google/nano-banana-pro",
+  "nano-banana-pro": "google/nano-banana-pro",
+  flux: "black-forest/flux-1.1-pro",
+  "flux-pro": "black-forest/flux-1.1-pro",
+  "grok-imagine": "xai/grok-imagine-image",
+  "grok-imagine-pro": "xai/grok-imagine-image-pro",
+  cogview: "zai/cogview-4",
+
+  // Video generation
+  "grok-video": "xai/grok-imagine-video",
+  seedance: "bytedance/seedance-1.5-pro",
+  "seedance-1.5": "bytedance/seedance-1.5-pro",
+  "seedance-2-fast": "bytedance/seedance-2.0-fast",
+  "seedance-2": "bytedance/seedance-2.0",
 };
 
 /**
