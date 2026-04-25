@@ -73695,13 +73695,14 @@ var MODEL_ALIASES = {
   "anthropic/claude-opus-4": "anthropic/claude-opus-4.7",
   "anthropic/claude-opus-4-7": "anthropic/claude-opus-4.7",
   "anthropic/claude-opus-4-6": "anthropic/claude-opus-4.6",
-  "anthropic/claude-opus-4.5": "anthropic/claude-opus-4.7",
+  "anthropic/claude-opus-4-5": "anthropic/claude-opus-4.5",
   "anthropic/claude-haiku-4": "anthropic/claude-haiku-4.5",
   "anthropic/claude-haiku-4-5": "anthropic/claude-haiku-4.5",
   // OpenAI
   gpt: "openai/gpt-4o",
   gpt4: "openai/gpt-4o",
   gpt5: "openai/gpt-5.4",
+  "gpt-5.5": "openai/gpt-5.5",
   "gpt-5.4": "openai/gpt-5.4",
   "gpt-5.4-pro": "openai/gpt-5.4-pro",
   "gpt-5.4-nano": "openai/gpt-5.4-nano",
@@ -73935,7 +73936,23 @@ var BLOCKRUN_MODELS = [
     reasoning: true,
     toolCalling: true
   },
-  // GPT-5.4 — newest flagship, same input price as 4o but much more capable
+  // GPT-5.5 — newest visible flagship in blockrun. First fully retrained base since
+  // GPT-4.5; 1M+ context, native agent + computer use. Costs 2x gpt-5.4 — routing
+  // tiers still default to gpt-5.4 because it's benchmarked; users can pin 5.5.
+  {
+    id: "openai/gpt-5.5",
+    name: "GPT-5.5",
+    version: "5.5",
+    inputPrice: 5,
+    outputPrice: 30,
+    contextWindow: 105e4,
+    maxOutput: 128e3,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true
+  },
+  // GPT-5.4 — flagship benchmarked into routing tiers
   {
     id: "openai/gpt-5.4",
     name: "GPT-5.4",
@@ -74140,6 +74157,19 @@ var BLOCKRUN_MODELS = [
     outputPrice: 15,
     contextWindow: 2e5,
     maxOutput: 64e3,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true
+  },
+  {
+    id: "anthropic/claude-opus-4.5",
+    name: "Claude Opus 4.5",
+    version: "4.5",
+    inputPrice: 5,
+    outputPrice: 25,
+    contextWindow: 2e5,
+    maxOutput: 32e3,
     reasoning: true,
     vision: true,
     agentic: true,
@@ -74461,7 +74491,9 @@ var BLOCKRUN_MODELS = [
     maxOutput: 16384,
     reasoning: true,
     agentic: true,
-    toolCalling: true
+    toolCalling: true,
+    deprecated: true,
+    fallbackModel: "minimax/minimax-m2.7"
   },
   // Free models (hosted by NVIDIA, billingMode: "free" on server)
   // IDs use "free/" prefix so users see them as free in the /model picker.

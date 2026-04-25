@@ -40,7 +40,7 @@ export const MODEL_ALIASES: Record<string, string> = {
   "anthropic/claude-opus-4": "anthropic/claude-opus-4.7",
   "anthropic/claude-opus-4-7": "anthropic/claude-opus-4.7",
   "anthropic/claude-opus-4-6": "anthropic/claude-opus-4.6",
-  "anthropic/claude-opus-4.5": "anthropic/claude-opus-4.7",
+  "anthropic/claude-opus-4-5": "anthropic/claude-opus-4.5",
   "anthropic/claude-haiku-4": "anthropic/claude-haiku-4.5",
   "anthropic/claude-haiku-4-5": "anthropic/claude-haiku-4.5",
 
@@ -48,6 +48,7 @@ export const MODEL_ALIASES: Record<string, string> = {
   gpt: "openai/gpt-4o",
   gpt4: "openai/gpt-4o",
   gpt5: "openai/gpt-5.4",
+  "gpt-5.5": "openai/gpt-5.5",
   "gpt-5.4": "openai/gpt-5.4",
   "gpt-5.4-pro": "openai/gpt-5.4-pro",
   "gpt-5.4-nano": "openai/gpt-5.4-nano",
@@ -352,7 +353,23 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     reasoning: true,
     toolCalling: true,
   },
-  // GPT-5.4 — newest flagship, same input price as 4o but much more capable
+  // GPT-5.5 — newest visible flagship in blockrun. First fully retrained base since
+  // GPT-4.5; 1M+ context, native agent + computer use. Costs 2x gpt-5.4 — routing
+  // tiers still default to gpt-5.4 because it's benchmarked; users can pin 5.5.
+  {
+    id: "openai/gpt-5.5",
+    name: "GPT-5.5",
+    version: "5.5",
+    inputPrice: 5.0,
+    outputPrice: 30.0,
+    contextWindow: 1050000,
+    maxOutput: 128000,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true,
+  },
+  // GPT-5.4 — flagship benchmarked into routing tiers
   {
     id: "openai/gpt-5.4",
     name: "GPT-5.4",
@@ -562,6 +579,19 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     outputPrice: 15.0,
     contextWindow: 200000,
     maxOutput: 64000,
+    reasoning: true,
+    vision: true,
+    agentic: true,
+    toolCalling: true,
+  },
+  {
+    id: "anthropic/claude-opus-4.5",
+    name: "Claude Opus 4.5",
+    version: "4.5",
+    inputPrice: 5.0,
+    outputPrice: 25.0,
+    contextWindow: 200000,
+    maxOutput: 32000,
     reasoning: true,
     vision: true,
     agentic: true,
@@ -892,6 +922,8 @@ export const BLOCKRUN_MODELS: BlockRunModel[] = [
     reasoning: true,
     agentic: true,
     toolCalling: true,
+    deprecated: true,
+    fallbackModel: "minimax/minimax-m2.7",
   },
 
   // Free models (hosted by NVIDIA, billingMode: "free" on server)

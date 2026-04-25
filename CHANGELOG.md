@@ -4,6 +4,16 @@ All notable changes to ClawRouter.
 
 ---
 
+## v0.12.167 — Apr 24, 2026
+
+- **Realign the model registry to BlockRun source-of-truth.** Audit found three drifts where ClawRouter's `BLOCKRUN_MODELS` table didn't match what `blockrun/src/lib/models.ts` actually exposes. The server is the source of truth for which models exist and what they cost; the proxy's local view should mirror that 1:1 so cost estimation, the `/model` picker, and routing tier selection all see the same world the server does.
+  - **Add `openai/gpt-5.5`.** BlockRun's newest visible OpenAI flagship — first fully retrained base since GPT-4.5, 1M+ context, 128K output, native agent + computer use. Pricing $5/$30 per 1M tokens. Added to `BLOCKRUN_MODELS`, the `gpt-5.5` alias, and the `TOP_MODELS` allowlist in both install scripts. Routing tiers in `src/router/config.ts` continue to anchor on `gpt-5.4` because that's what's benchmarked; users can pin `5.5` explicitly. Routing change is a separate decision.
+  - **Add `anthropic/claude-opus-4.5` as a distinct model.** Previously ClawRouter's `MODEL_ALIASES` silently rewrote `anthropic/claude-opus-4.5` to `4.7`, making 4.5 unreachable through ClawRouter even though BlockRun lists it as a separate visible model with its own pricing and 200K context (vs 4.6/4.7's 1M). Removed the alias, added 4.5 to `BLOCKRUN_MODELS` with its real 200K/32K shape, and added an `anthropic/claude-opus-4-5` (dashed) alias for the slug variant. Test in `src/models.test.ts` was codifying the old upgrade-to-4.7 behavior — flipped to assert the pin is preserved end-to-end.
+  - **Mark `minimax/minimax-m2.5` deprecated → fallback `minimax/minimax-m2.7`.** BlockRun retired m2.5 entirely (only m2.7 is in their `MODELS` table). ClawRouter still listed both; m2.5 now flips to `deprecated: true` with the m2.7 fallback so existing pins keep working.
+  - **`scripts/reinstall.sh` + `scripts/update.sh`:** drop `minimax/minimax-m2.5` from the `TOP_MODELS` picker allowlist (still reachable, just hidden from the picker) and add `openai/gpt-5.5` + `anthropic/claude-opus-4.5`.
+
+---
+
 ## v0.12.166 — Apr 24, 2026
 
 - **Tool-call planning prose suppressed even when `finish_reason` is the only signal (thanks @0xCheetah1, #162).** Follow-up to v0.12.165's #161 fix. Live Telegram/OpenClaw testing caught one more shape the planning-prose leak could wriggle through: some upstreams (Moonshot Kimi K2.6 again) mark a turn with `finish_reason: "tool_calls"` without exposing `message.tool_calls` / `delta.tool_calls` at the same inspection point. The #161 gate (`toolCalls.length > 0`) saw no array and let the prose through. The gate is now `endsWithToolCalls || toolCalls.length > 0` — applied consistently across the non-streaming JSON path and the SSE emission path, plus the finish-reason override in the SSE terminal chunk. Two new regression tests in `src/proxy.tool-forwarding.test.ts` — one per response shape — lock the behavior in: a response with `finish_reason: "tool_calls"` and no tool_calls array has its `content` blanked and the `tool_calls` finish_reason preserved. User-visible impact: fewer "I should look up X before replying" preambles sneaking into agent chat surfaces for turns that are supposed to be pure tool invocations.
