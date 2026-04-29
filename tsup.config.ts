@@ -2,7 +2,7 @@ import { builtinModules } from "node:module";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/proxy-simple.ts", "src/cli-simple.ts"],
+  entry: ["src/proxy-enhanced.ts", "src/cli-enhanced.ts"],
   format: ["esm"],
   dts: true,
   clean: true,

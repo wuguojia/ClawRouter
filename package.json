@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "description": "通用智能 LLM API 路由器 - 支持多提供商、自动降级和成本优化",
   "type": "module",
-  "main": "dist/proxy-simple.js",
-  "types": "dist/proxy-simple.d.ts",
+  "main": "dist/proxy-enhanced.js",
+  "types": "dist/proxy-enhanced.d.ts",
   "bin": {
-    "apirouter": "./dist/cli-simple.js"
+    "apirouter": "./dist/cli-enhanced.js"
   },
   "exports": {
     ".": {
-      "import": "./dist/proxy-simple.js",
-      "types": "./dist/proxy-simple.d.ts"
+      "import": "./dist/proxy-enhanced.js",
+      "types": "./dist/proxy-enhanced.d.ts"
     }
   },
   "files": [
