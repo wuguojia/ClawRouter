@@ -4,11 +4,20 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadConfig, loadProviders, loadModels } from "./config/loader.js";
 import { getAdapter } from "./formats/index.js";
 import type { ProviderConfig, ModelConfig } from "./config/types.js";
 import type { GenericCompletionRequest } from "./formats/types.js";
 import { selectBestModel, getFallbackModels } from "./router/smart-router.js";
+import { RequestCache } from "./cache/request-cache.js";
+import { RateLimiter } from "./ratelimit/token-bucket.js";
+import { ConnectionPool } from "./pool/connection-pool.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * 代理服务器选项
@@ -27,7 +36,17 @@ export interface ProxyOptions {
 export interface ProxyHandle {
   port: number;
   close: () => Promise<void>;
+  getStats: () => {
+    cache: ReturnType<RequestCache["getStats"]>;
+    rateLimit: ReturnType<RateLimiter["getStats"]>;
+    connectionPool: ReturnType<ConnectionPool["getStats"]>;
+  };
 }
+
+// 全局实例
+let requestCache: RequestCache;
+let rateLimiter: RateLimiter;
+let connectionPool: ConnectionPool;
 
 /**
  * 启动代理服务器
@@ -39,6 +58,25 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyHandl
 
   const port = options.port || config?.port || 8402;
   const enableSmartRouting = options.enableSmartRouting ?? config?.routing.enableSmartRouting ?? true;
+
+  // 初始化缓存
+  requestCache = new RequestCache(config?.cache || {});
+
+  // 初始化速率限制器
+  rateLimiter = new RateLimiter(config?.rateLimit || {});
+  if (config?.rateLimit?.providerLimits) {
+    for (const [providerId, limit] of Object.entries(config.rateLimit.providerLimits)) {
+      rateLimiter.setProviderLimit(providerId, limit);
+    }
+  }
+  if (config?.rateLimit?.modelLimits) {
+    for (const [modelId, limit] of Object.entries(config.rateLimit.modelLimits)) {
+      rateLimiter.setModelLimit(modelId, limit);
+    }
+  }
+
+  // 初始化连接池
+  connectionPool = new ConnectionPool(config?.connectionPool || {});
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // CORS 处理
@@ -63,6 +101,33 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyHandl
           smartRouting: enableSmartRouting,
         }),
       );
+      return;
+    }
+
+    // 统计信息
+    if (req.url === "/stats") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          cache: requestCache.getStats(),
+          rateLimit: rateLimiter.getStats(),
+          connectionPool: connectionPool.getStats(),
+        }),
+      );
+      return;
+    }
+
+    // Web 管理界面
+    if (req.url === "/" || req.url === "/index.html") {
+      try {
+        const htmlPath = join(__dirname, "web", "index.html");
+        const html = readFileSync(htmlPath, "utf-8");
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end(html);
+      } catch (error) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Web interface not found");
+      }
       return;
     }
 
@@ -94,9 +159,15 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyHandl
         port: addr.port,
         close: () => {
           return new Promise((resolveClose) => {
+            connectionPool.destroy();
             server.close(() => resolveClose());
           });
         },
+        getStats: () => ({
+          cache: requestCache.getStats(),
+          rateLimit: rateLimiter.getStats(),
+          connectionPool: connectionPool.getStats(),
+        }),
       });
     });
   });
@@ -118,6 +189,15 @@ async function handleChatCompletion(
     // 读取请求体
     const body = await readBody(req);
     const request: GenericCompletionRequest = JSON.parse(body);
+
+    // 检查缓存
+    const cachedResponse = requestCache.get(request);
+    if (cachedResponse) {
+      console.log("[缓存命中]");
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(cachedResponse);
+      return;
+    }
 
     let targetModel: ModelConfig | undefined;
     let tier: string | undefined;
@@ -146,6 +226,18 @@ async function handleChatCompletion(
       if (!targetModel) {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: `模型未找到: ${request.model}` }));
+        return;
+      }
+    }
+
+    // 检查速率限制
+    const provider = providers.find((p) => p.id === targetModel!.provider);
+    if (provider) {
+      const allowed = await rateLimiter.checkLimit(provider.id, targetModel.id);
+      if (!allowed) {
+        console.log("[速率限制] 请求被拒绝");
+        res.writeHead(429, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "请求过于频繁，请稍后重试" }));
         return;
       }
     }
@@ -184,6 +276,8 @@ async function handleChatCompletion(
           res.write(result);
           res.end();
         } else {
+          // 缓存非流式响应
+          requestCache.set(request, result);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(result);
         }
@@ -249,12 +343,17 @@ async function makeRequest(
   const url = adapter.buildRequestUrl(provider.baseUrl);
   const headers = adapter.buildHeaders(provider.apiKey, provider.headers);
 
+  // 获取连接池中的 Agent
+  const agent = connectionPool.getAgent(url);
+
   // 发送请求到上游提供商
   const response = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify(providerRequest),
     signal: AbortSignal.timeout(provider.timeout || 60000),
+    // @ts-ignore - Node.js fetch 支持 agent 选项
+    agent,
   });
 
   if (!response.ok) {

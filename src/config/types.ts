@@ -104,6 +104,52 @@ export interface FallbackConfig {
 }
 
 /**
+ * 缓存配置
+ */
+export interface CacheConfig {
+  /** 是否启用缓存 */
+  enabled: boolean;
+  /** 最大缓存条目数 */
+  maxSize: number;
+  /** 缓存过期时间（毫秒） */
+  ttl: number;
+}
+
+/**
+ * 速率限制配置
+ */
+export interface RateLimitConfig {
+  /** 是否启用速率限制 */
+  enabled: boolean;
+  /** 每秒令牌数 */
+  tokensPerSecond: number;
+  /** 桶容量 */
+  bucketSize: number;
+  /** 提供商特定限制 */
+  providerLimits?: Record<string, { tokensPerSecond: number; bucketSize: number }>;
+  /** 模型特定限制 */
+  modelLimits?: Record<string, { tokensPerSecond: number; bucketSize: number }>;
+}
+
+/**
+ * 连接池配置
+ */
+export interface ConnectionPoolConfig {
+  /** 每个主机的最大 socket 数 */
+  maxSockets: number;
+  /** 每个主机的最大空闲 socket 数 */
+  maxFreeSockets: number;
+  /** socket 超时时间（毫秒） */
+  timeout: number;
+  /** 空闲 socket 超时时间（毫秒） */
+  freeSocketTimeout: number;
+  /** 是否启用 keep-alive */
+  keepAlive: boolean;
+  /** keep-alive 初始延迟（毫秒） */
+  keepAliveMsecs: number;
+}
+
+/**
  * 路由配置
  */
 export interface RouterConfig {
@@ -129,6 +175,12 @@ export interface AppConfig {
   providers: ProviderConfig[];
   /** 路由配置 */
   routing: RouterConfig;
+  /** 缓存配置 */
+  cache?: CacheConfig;
+  /** 速率限制配置 */
+  rateLimit?: RateLimitConfig;
+  /** 连接池配置 */
+  connectionPool?: ConnectionPoolConfig;
   /** 配置版本 */
   version: string;
   /** 是否启用日志 */
