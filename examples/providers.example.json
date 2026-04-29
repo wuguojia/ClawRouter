@@ -1,0 +1,22 @@
+[
+  {
+    "id": "openai-main",
+    "name": "OpenAI",
+    "format": "openai",
+    "baseUrl": "https://api.openai.com",
+    "apiKey": "sk-your-openai-api-key-here",
+    "enabled": true,
+    "timeout": 60000,
+    "models": []
+  },
+  {
+    "id": "anthropic-main",
+    "name": "Anthropic",
+    "format": "anthropic",
+    "baseUrl": "https://api.anthropic.com",
+    "apiKey": "sk-ant-your-anthropic-api-key-here",
+    "enabled": true,
+    "timeout": 60000,
+    "models": []
+  }
+]
