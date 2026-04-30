@@ -5,12 +5,12 @@
  * Standalone proxy for deployed setups where the proxy needs to survive gateway restarts.
  *
  * Usage:
- *   npx @blockrun/apirouter              # Start standalone proxy
- *   npx @blockrun/apirouter --version    # Show version
- *   npx @blockrun/apirouter --port 8402  # Custom port
+ *   npx w/apirouter              # Start standalone proxy
+ *   npx w/apirouter --version    # Show version
+ *   npx w/apirouter --port 8402  # Custom port
  *
  * For production deployments, use with PM2:
- *   pm2 start "npx @blockrun/apirouter" --name apirouter
+ *   pm2 start "npx w/apirouter" --name apirouter
  */
 
 import { startProxy, getProxyPort } from "./proxy.js";
@@ -105,7 +105,7 @@ async function cmdStatus(port: number): Promise<void> {
     console.log();
   } catch {
     console.error(`✗ Cannot connect to ClawRouter on port ${port}`);
-    console.error(`  Is the proxy running? Start with: npx @blockrun/apirouter`);
+    console.error(`  Is the proxy running? Start with: npx w/apirouter`);
     process.exit(1);
   }
 }
@@ -519,6 +519,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error(`[ClawRouter] Fatal error: ${err.message}`);
-  console.error(`[ClawRouter] Need help? Run: npx @blockrun/apirouter doctor`);
+  console.error(`[ClawRouter] Need help? Run: npx w/apirouter doctor`);
   process.exit(1);
 });

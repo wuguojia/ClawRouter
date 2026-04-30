@@ -89,7 +89,7 @@ function yellow(text: string): string {
 // Fetch latest published version from npm registry
 async function fetchLatestVersion(): Promise<string | null> {
   try {
-    const res = await fetch("https://registry.npmjs.org/@blockrun/clawrouter/latest", {
+    const res = await fetch("https://registry.npmjs.org/w/apirouter/latest", {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;

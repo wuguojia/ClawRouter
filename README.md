@@ -17,8 +17,8 @@ Agents need simple, API-key based access.<br><br>
 <img src="https://img.shields.io/badge/⚡_Local_Routing-yellow?style=for-the-badge" alt="Local routing">&nbsp;
 <img src="https://img.shields.io/badge/🔓_Open_Source-green?style=for-the-badge" alt="Open source">
 
-[![npm version](https://img.shields.io/npm/v/@blockrun/apirouter.svg?style=flat-square&color=cb3837)](https://npmjs.com/package/@blockrun/apirouter)
-[![npm downloads](https://img.shields.io/npm/dm/@blockrun/apirouter.svg?style=flat-square&color=blue)](https://npmjs.com/package/@blockrun/apirouter)
+[![npm version](https://img.shields.io/npm/v/w/apirouter.svg?style=flat-square&color=cb3837)](https://npmjs.com/package/w/apirouter)
+[![npm downloads](https://img.shields.io/npm/dm/w/apirouter.svg?style=flat-square&color=blue)](https://npmjs.com/package/w/apirouter)
 [![GitHub stars](https://img.shields.io/github/stars/BlockRunAI/ClawRouter?style=flat-square&label=GitHub%20stars)](https://github.com/BlockRunAI/ClawRouter)
 [![CI](https://img.shields.io/github/actions/workflow/status/BlockRunAI/ClawRouter/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/BlockRunAI/ClawRouter/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
@@ -89,7 +89,7 @@ Or use a configuration file for multiple providers per format (e.g., OpenAI offi
 
 ```bash
 # Add a provider interactively
-npx @blockrun/apirouter provider add
+npx w/apirouter provider add
 
 # Or manually edit ~/.apirouter/providers.json
 ```
@@ -142,7 +142,7 @@ export BLOCKRUN_API_KEY=your-api-key-here
 **2. Start the proxy**
 
 ```bash
-npx @blockrun/apirouter
+npx w/apirouter
 ```
 
 **3. Point your client at `http://localhost:8402`**
@@ -395,28 +395,28 @@ Manage providers and check system status:
 
 ```bash
 # List all configured providers
-npx @blockrun/apirouter providers
+npx w/apirouter providers
 
 # Add a new provider interactively
-npx @blockrun/apirouter provider add
+npx w/apirouter provider add
 
 # Check proxy status
-npx @blockrun/apirouter status
+npx w/apirouter status
 
 # List available models
-npx @blockrun/apirouter models
+npx w/apirouter models
 
 # View usage statistics
-npx @blockrun/apirouter stats
-npx @blockrun/apirouter stats --days 14
+npx w/apirouter stats
+npx w/apirouter stats --days 14
 
 # View detailed logs
-npx @blockrun/apirouter logs
-npx @blockrun/apirouter logs --days 7
+npx w/apirouter logs
+npx w/apirouter logs --days 7
 
 # Run diagnostics
-npx @blockrun/apirouter doctor
-npx @blockrun/apirouter doctor opus "Why is my request slow?"
+npx w/apirouter doctor
+npx w/apirouter doctor opus "Why is my request slow?"
 ```
 
 ---
@@ -473,7 +473,7 @@ Exclusions persist across restarts (stored in local config). If all models in a 
 **When things go wrong, run the doctor:**
 
 ```bash
-npx @blockrun/apirouter doctor
+npx w/apirouter doctor
 ```
 
 This collects diagnostics and sends them to Claude Sonnet for AI-powered analysis:
@@ -496,20 +496,20 @@ Network
 📤 Sending to Claude Sonnet 4.6 (~$0.003)...
 
 🤖 AI Analysis:
-The local proxy isn't running. Start it with `npx @blockrun/apirouter` to fix.
+The local proxy isn't running. Start it with `npx w/apirouter` to fix.
 ```
 
 **Use Opus for complex issues:**
 
 ```bash
-npx @blockrun/apirouter doctor opus
+npx w/apirouter doctor opus
 ```
 
 **Ask a specific question:**
 
 ```bash
-npx @blockrun/apirouter doctor "why is my request failing?"
-npx @blockrun/apirouter doctor opus "深度分析我的配置"
+npx w/apirouter doctor "why is my request failing?"
+npx w/apirouter doctor opus "深度分析我的配置"
 ```
 
 **Cost:** Sonnet ~$0.003 (default) | Opus ~$0.01

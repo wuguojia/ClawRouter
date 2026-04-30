@@ -154,7 +154,7 @@ Meta's newest open-source model represents the current state of the art in open 
 
 ```bash
 # Install
-npm install -g @blockrun/clawrouter
+npm install -g w/apirouter
 
 # Start the local proxy
 clawrouter start
@@ -262,7 +262,7 @@ Today it's 11 free models. Tomorrow it could be 50. Prices will only drop. Capab
 ## Start Now
 
 ```bash
-npm install -g @blockrun/clawrouter
+npm install -g w/apirouter
 clawrouter start
 ```
 

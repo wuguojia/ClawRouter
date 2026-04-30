@@ -1678,9 +1678,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       `[ClawRouter] ⚠ Payment chain is Solana but no mnemonic found — falling back to Base (EVM).`,
     );
     console.warn(
-      `[ClawRouter]   To fix: run "npx @blockrun/clawrouter wallet recover" if your mnemonic exists,`,
+      `[ClawRouter]   To fix: run "npx w/apirouter wallet recover" if your mnemonic exists,`,
     );
-    console.warn(`[ClawRouter]   or run "npx @blockrun/clawrouter chain base" to switch to EVM.`);
+    console.warn(`[ClawRouter]   or run "npx w/apirouter chain base" to switch to EVM.`);
   } else if (paymentChain === "solana") {
     console.log(`[ClawRouter] Payment chain: Solana (${BLOCKRUN_SOLANA_API})`);
   }
@@ -3963,7 +3963,7 @@ async function proxyRequest(
       // Log routing errors so they're not silently swallowed
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(`[ClawRouter] Routing error: ${errorMsg}`);
-      console.error(`[ClawRouter] Need help? Run: npx @blockrun/clawrouter doctor`);
+      console.error(`[ClawRouter] Need help? Run: npx w/apirouter doctor`);
       options.onError?.(new Error(`Routing failed: ${errorMsg}`));
     }
   }

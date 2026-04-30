@@ -227,7 +227,7 @@ Multilingual support across 9 languages. Tool-calling and vision requests automa
 ### Step 1: Install
 
 ```bash
-npx @blockrun/clawrouter
+npx w/apirouter
 ```
 
 Starts a local proxy on port 8402. Auto-generates a crypto wallet. Done.
@@ -340,7 +340,7 @@ The fundamental difference: **OpenRouter is a model marketplace where you choose
 
 ```bash
 # Start saving now:
-npx @blockrun/clawrouter
+npx w/apirouter
 ```
 
 **Links:**

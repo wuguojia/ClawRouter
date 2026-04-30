@@ -225,7 +225,7 @@ console.log(response.data[0].url);
 If you're using ClawRouter as a library:
 
 ```typescript
-import { startProxy } from "@blockrun/clawrouter";
+import { startProxy } from "w/apirouter";
 
 const proxy = await startProxy({ walletKey: process.env.BLOCKRUN_WALLET_KEY! });
 
