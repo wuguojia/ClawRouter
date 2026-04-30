@@ -29,7 +29,6 @@ Agents can only sign transactions.<br><br>
 [![x402 Protocol](https://img.shields.io/badge/x402-Micropayments-purple?style=flat-square)](https://x402.org)
 [![Base Network](https://img.shields.io/badge/Base-USDC-0052FF?style=flat-square&logo=coinbase&logoColor=white)](https://base.org)
 [![Solana](https://img.shields.io/badge/Solana-USDC-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com)
-[![OpenClaw Plugin](https://img.shields.io/badge/OpenClaw-Plugin-orange?style=flat-square)](https://openclaw.ai)
 [![Telegram](https://img.shields.io/badge/Telegram-Community-26A5E4?style=flat-square&logo=telegram)](https://t.me/blockrunAI)
 
 </div>
@@ -80,22 +79,7 @@ This is the stack that lets agents operate autonomously: **x402 + USDC + local r
 
 > **No wallet? 8 models work free out of the box.** Install, run, and pin `nvidia/gpt-oss-120b` — no crypto, no signup, no balance required. Add USDC later when you want paid models.
 
-### Option A — OpenClaw Agent
-
-[OpenClaw](https://openclaw.ai) is an AI coding agent. If you're using it, ClawRouter installs as a plugin:
-
-```bash
-curl -fsSL https://blockrun.ai/ClawRouter-update | bash
-openclaw gateway restart
-```
-
-Done. Smart routing (`blockrun/auto`) is now your default model.
-
-### Option B — Standalone (continue.dev, Cursor, VS Code, any OpenAI-compatible client)
-
-> **Using Claude Code?** Check out [BRCC](https://blockrun.ai/brcc.md) — it's purpose-built for Claude Code with the same smart routing and x402 payments.
-
-No OpenClaw required. ClawRouter runs as a local proxy on port 8402.
+ClawRouter runs as a local proxy on port 8402 and works with any OpenAI-compatible client.
 
 **1. Start the proxy**
 
@@ -104,7 +88,7 @@ npx @blockrun/clawrouter
 ```
 
 **2. Fund your wallet** — optional, skip for free tier
-Your wallet address is printed on first run. For paid models, send a few USDC on Base or Solana — $5 covers thousands of requests. To stay at $0, pin any of the 8 free models (e.g. `nvidia/gpt-oss-120b`) or use `/model free` inside OpenClaw.
+Your wallet address is printed on first run. For paid models, send a few USDC on Base or Solana — $5 covers thousands of requests. To stay at $0, pin any of the 8 free models (e.g. `nvidia/gpt-oss-120b`).
 
 **3. Point your client at `http://localhost:8402`**
 
@@ -429,7 +413,7 @@ Block specific models from being routed to. Useful if a model doesn't follow you
 /exclude clear                     # Remove all exclusions
 ```
 
-Exclusions persist across restarts (`~/.openclaw/blockrun/exclude-models.json`). If all models in a tier are excluded, the safety net ignores the filter so routing never breaks.
+Exclusions persist across restarts (stored in local config). If all models in a tier are excluded, the safety net ignores the filter so routing never breaks.
 
 ---
 
@@ -461,7 +445,7 @@ Network
 📤 Sending to Claude Sonnet 4.6 (~$0.003)...
 
 🤖 AI Analysis:
-The local proxy isn't running. Run `openclaw gateway restart` to fix.
+The local proxy isn't running. Start it with `npx @blockrun/clawrouter` to fix.
 ```
 
 **Use Opus for complex issues:**
@@ -581,7 +565,7 @@ Both are open source and run locally. But ClawRouter adds smart routing (automat
 
 ### What agents does ClawRouter work with?
 
-ClawRouter works with any tool that makes OpenAI-compatible API calls — point it at `http://localhost:8402`. This includes continue.dev, Cursor, VS Code extensions, ElizaOS, and custom agents. It also integrates as a plugin with [OpenClaw](https://openclaw.ai) (an AI coding agent), which enables additional features like slash commands and usage reports.
+ClawRouter works with any tool that makes OpenAI-compatible API calls — point it at `http://localhost:8402`. This includes continue.dev, Cursor, VS Code extensions, ElizaOS, and custom agents.
 
 ### Is ClawRouter free?
 

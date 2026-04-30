@@ -1,6 +1,6 @@
 # ClawRouter
 
-Smart LLM router for autonomous agents. 55+ models. Wallet-based auth. USDC micropayments via x402.
+通用智能 LLM API 路由器 - 支持多提供商、自动降级和成本优化。55+ models. Wallet-based auth. USDC micropayments via x402.
 
 ## Commands
 
@@ -24,12 +24,18 @@ npm run test:docker:integration # Docker integration tests
 
 ```
 src/
-├── index.ts             # Library entry point
+├── proxy.ts             # Core proxy server
+├── proxy-enhanced.ts    # Enhanced proxy with enterprise features
+├── proxy-simple.ts      # Simplified proxy
 ├── cli.ts               # CLI entry point
+├── cli-enhanced.ts      # Enhanced CLI
+├── cli-simple.ts        # Simplified CLI
 ├── auth.ts              # Wallet-based authentication
 ├── balance.ts           # USDC balance management
 ├── models.ts            # Model registry and scoring
-├── config.ts            # Configuration
+├── config/              # Configuration management
+├── router/              # Smart routing logic
+├── formats/             # Provider format adapters
 ├── errors.ts            # Error classification
 ├── logger.ts            # Logging
 ├── journal.ts           # Request journaling
@@ -37,8 +43,11 @@ src/
 ├── dedup.ts             # Request deduplication
 ├── fs-read.ts           # Filesystem reading
 ├── compression/         # Request/response compression
-├── doctor.ts            # Diagnostic tool
-└── partners/            # Partner integrations
+├── cache/               # Response caching
+├── ratelimit/           # Rate limiting
+├── pool/                # Connection pooling
+├── web/                 # Web management interface
+└── doctor.ts            # Diagnostic tool
 ```
 
 ## Key dependencies
