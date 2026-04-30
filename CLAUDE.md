@@ -1,6 +1,6 @@
 # ClawRouter
 
-通用智能 LLM API 路由器 - 支持多提供商、自动降级和成本优化。55+ models. Wallet-based auth. USDC micropayments via x402.
+通用智能 LLM API 路由器 - 支持多提供商、自动降级和成本优化。55+ models. Simple API key authentication.
 
 ## Commands
 
@@ -30,8 +30,7 @@ src/
 ├── cli.ts               # CLI entry point
 ├── cli-enhanced.ts      # Enhanced CLI
 ├── cli-simple.ts        # Simplified CLI
-├── auth.ts              # Wallet-based authentication
-├── balance.ts           # USDC balance management
+├── auth.ts              # API key authentication
 ├── models.ts            # Model registry and scoring
 ├── config/              # Configuration management
 ├── router/              # Smart routing logic
@@ -52,10 +51,9 @@ src/
 
 ## Key dependencies
 
-- `@x402/fetch`, `@x402/evm`, `@x402/svm` — x402 payment protocol
-- `viem` — Ethereum interaction
-- `@solana/kit` — Solana interaction
-- `@scure/bip32`, `@scure/bip39` — Wallet key derivation
+- TypeScript strict mode, ESM
+- Node.js >= 20
+- No external payment dependencies
 
 ## Conventions
 
