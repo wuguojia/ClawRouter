@@ -68,7 +68,7 @@ Response returned to user
 
    ```bash
    npm install -g openclaw
-   openclaw plugins install @blockrun/clawrouter
+   openclaw plugins install w/apirouter
    ```
 
 2. **Subscription configured in OpenClaw**

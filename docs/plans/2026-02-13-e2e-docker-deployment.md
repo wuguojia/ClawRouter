@@ -448,8 +448,8 @@ test_case() {
 
 # Test 1: Fresh npm global installation
 test_fresh_install() {
-  echo "Installing @blockrun/clawrouter globally..."
-  npm install -g @blockrun/clawrouter@latest
+  echo "Installing w/apirouter globally..."
+  npm install -g w/apirouter@latest
 
   echo "Verifying clawrouter command exists..."
   which clawrouter || return 1
@@ -458,15 +458,15 @@ test_fresh_install() {
   clawrouter --version || return 1
 
   echo "Verifying package is in npm global list..."
-  npm list -g @blockrun/clawrouter || return 1
+  npm list -g w/apirouter || return 1
 
   return 0
 }
 
 # Test 2: Uninstall verification
 test_uninstall() {
-  echo "Uninstalling @blockrun/clawrouter..."
-  npm uninstall -g @blockrun/clawrouter
+  echo "Uninstalling w/apirouter..."
+  npm uninstall -g w/apirouter
 
   echo "Verifying clawrouter command is gone..."
   if which clawrouter 2>/dev/null; then
@@ -475,7 +475,7 @@ test_uninstall() {
   fi
 
   echo "Verifying package is not in npm global list..."
-  if npm list -g @blockrun/clawrouter 2>/dev/null; then
+  if npm list -g w/apirouter 2>/dev/null; then
     echo "ERROR: package still in npm list after uninstall"
     return 1
   fi
@@ -485,8 +485,8 @@ test_uninstall() {
 
 # Test 3: Reinstall after uninstall
 test_reinstall() {
-  echo "Reinstalling @blockrun/clawrouter..."
-  npm install -g @blockrun/clawrouter@latest
+  echo "Reinstalling w/apirouter..."
+  npm install -g w/apirouter@latest
 
   echo "Verifying reinstall works..."
   clawrouter --version || return 1
@@ -503,7 +503,7 @@ test_openclaw_plugin_install() {
   }
 
   echo "Installing ClawRouter as OpenClaw plugin..."
-  openclaw plugins install @blockrun/clawrouter || return 1
+  openclaw plugins install w/apirouter || return 1
 
   echo "Verifying plugin is listed..."
   openclaw plugins list | grep -q "clawrouter" || return 1
@@ -533,14 +533,14 @@ test_openclaw_plugin_uninstall() {
 # Test 6: Upgrade from previous version
 test_upgrade() {
   echo "Installing older version (0.8.25)..."
-  npm install -g @blockrun/clawrouter@0.8.25
+  npm install -g w/apirouter@0.8.25
 
   echo "Verifying old version..."
   local old_version=$(clawrouter --version)
   echo "Installed: $old_version"
 
   echo "Upgrading to latest..."
-  npm install -g @blockrun/clawrouter@latest
+  npm install -g w/apirouter@latest
 
   echo "Verifying upgrade..."
   local new_version=$(clawrouter --version)
@@ -560,7 +560,7 @@ test_custom_wallet() {
   export BLOCKRUN_WALLET_KEY="0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
   echo "Installing with wallet key..."
-  npm install -g @blockrun/clawrouter@latest
+  npm install -g w/apirouter@latest
 
   echo "Verifying installation..."
   clawrouter --version || return 1
@@ -571,11 +571,11 @@ test_custom_wallet() {
 
 # Test 8: Verify package files exist
 test_package_files() {
-  echo "Installing @blockrun/clawrouter..."
-  npm install -g @blockrun/clawrouter@latest
+  echo "Installing w/apirouter..."
+  npm install -g w/apirouter@latest
 
   echo "Finding package installation directory..."
-  local pkg_dir=$(npm root -g)/@blockrun/clawrouter
+  local pkg_dir=$(npm root -g)/w/apirouter
 
   echo "Checking for required files..."
   [ -f "$pkg_dir/dist/index.js" ] || { echo "Missing dist/index.js"; return 1; }
@@ -589,14 +589,14 @@ test_package_files() {
 
 # Test 9: Version command accuracy
 test_version_command() {
-  echo "Installing @blockrun/clawrouter..."
-  npm install -g @blockrun/clawrouter@latest
+  echo "Installing w/apirouter..."
+  npm install -g w/apirouter@latest
 
   echo "Running version command..."
   local cli_version=$(clawrouter --version)
 
   echo "Reading package.json version..."
-  local pkg_dir=$(npm root -g)/@blockrun/clawrouter
+  local pkg_dir=$(npm root -g)/w/apirouter
   local pkg_version=$(node -p "require('$pkg_dir/package.json').version")
 
   echo "CLI version: $cli_version"
@@ -612,18 +612,18 @@ test_version_command() {
 
 # Test 10: Full cleanup verification
 test_full_cleanup() {
-  echo "Installing @blockrun/clawrouter..."
-  npm install -g @blockrun/clawrouter@latest
+  echo "Installing w/apirouter..."
+  npm install -g w/apirouter@latest
 
   echo "Finding all ClawRouter files..."
-  local pkg_dir=$(npm root -g)/@blockrun/clawrouter
+  local pkg_dir=$(npm root -g)/w/apirouter
   local bin_link=$(which clawrouter)
 
   echo "Package dir: $pkg_dir"
   echo "Binary link: $bin_link"
 
   echo "Uninstalling..."
-  npm uninstall -g @blockrun/clawrouter
+  npm uninstall -g w/apirouter
 
   echo "Verifying complete cleanup..."
   if [ -d "$pkg_dir" ]; then
@@ -716,7 +716,7 @@ Expected output:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Test: 1. Fresh npm global installation
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Installing @blockrun/clawrouter globally...
+Installing w/apirouter globally...
 Verifying clawrouter command exists...
 Checking version...
 0.8.30
@@ -914,7 +914,7 @@ echo "✓ Tag v$NEW_VERSION created"
 echo ""
 echo -e "${YELLOW}13. Ready to publish${NC}"
 echo ""
-echo "Package: @blockrun/clawrouter"
+echo "Package: w/apirouter"
 echo "Version: $NEW_VERSION"
 echo "Registry: https://registry.npmjs.org"
 echo ""
@@ -958,8 +958,8 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}  Deployment Complete! 🎉${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Package: @blockrun/clawrouter@$NEW_VERSION"
-echo "npm: https://www.npmjs.com/package/@blockrun/clawrouter"
+echo "Package: w/apirouter@$NEW_VERSION"
+echo "npm: https://www.npmjs.com/package/w/apirouter"
 echo "GitHub: https://github.com/BlockRunAI/ClawRouter/releases/tag/v$NEW_VERSION"
 echo ""
 ```
@@ -1023,7 +1023,7 @@ BLOCKRUN_WALLET_KEY=0x... npx tsx test/test-e2e.ts
 
 ## Prerequisites
 
-1. **npm account with publish access** to `@blockrun/clawrouter`
+1. **npm account with publish access** to `w/apirouter`
 2. **GitHub CLI (`gh`)** installed (optional, for automated release creation)
 3. **Funded wallet** for E2E tests (optional, but recommended)
 
@@ -1095,8 +1095,8 @@ gh release create v0.8.31 --title "v0.8.31" --generate-notes
 
 ## Post-Deployment Verification
 
-1. Check npm package: https://www.npmjs.com/package/@blockrun/clawrouter
-2. Verify installation: `npm install -g @blockrun/clawrouter@latest`
+1. Check npm package: https://www.npmjs.com/package/w/apirouter
+2. Verify installation: `npm install -g w/apirouter@latest`
 3. Test version: `clawrouter --version`
 4. Check GitHub release: https://github.com/BlockRunAI/ClawRouter/releases
 
@@ -1114,7 +1114,7 @@ git revert HEAD
 git push origin main
 
 # Unpublish from npm (within 72 hours)
-npm unpublish @blockrun/clawrouter@0.8.31
+npm unpublish w/apirouter@0.8.31
 ```
 
 ## Troubleshooting
@@ -1220,7 +1220,7 @@ Enter choice (1-4): 1
 
 13. Ready to publish
 
-Package: @blockrun/clawrouter
+Package: w/apirouter
 Version: 0.8.31
 Registry: https://registry.npmjs.org
 

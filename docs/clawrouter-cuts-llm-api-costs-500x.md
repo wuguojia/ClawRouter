@@ -194,4 +194,4 @@ That's what ClawRouter is for.
 
 ---
 
-_[github.com/BlockRunAI/ClawRouter](https://github.com/BlockRunAI/ClawRouter) · [blockrun.ai](https://blockrun.ai) · `npm install -g @blockrun/clawrouter`_
+_[github.com/BlockRunAI/ClawRouter](https://github.com/BlockRunAI/ClawRouter) · [blockrun.ai](https://blockrun.ai) · `npm install -g w/apirouter`_

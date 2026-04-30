@@ -131,7 +131,7 @@ lsof -i :8402
 ## How to Update
 
 ```bash
-npx @blockrun/clawrouter@latest
+npx w/apirouter@latest
 openclaw gateway restart
 ```
 

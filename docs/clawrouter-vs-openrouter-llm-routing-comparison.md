@@ -281,7 +281,7 @@ No silent drops. No stale catalog. Models are benchmarked for speed, quality, an
 
 ```bash
 # Install
-npm install -g @blockrun/clawrouter
+npm install -g w/apirouter
 
 # Start (auto-configures OpenClaw)
 clawrouter
@@ -297,8 +297,8 @@ ClawRouter auto-injects itself into `~/.openclaw/openclaw.json` as a provider on
 
 Load a wallet with USDC on Base or Solana, pick a routing profile, and run.
 
-![Frictionless Integration — npm install -g @blockrun/clawrouter, auto-injected provider into ~/.openclaw/openclaw.json. No code rewrites. Your existing tools, sessions, and extensions remain entirely unchanged.](./assets/clawrouter-frictionless-integration.png)
+![Frictionless Integration — npm install -g w/apirouter, auto-injected provider into ~/.openclaw/openclaw.json. No code rewrites. Your existing tools, sessions, and extensions remain entirely unchanged.](./assets/clawrouter-frictionless-integration.png)
 
 ---
 
-_[github.com/BlockRunAI/ClawRouter](https://github.com/BlockRunAI/ClawRouter) · [blockrun.ai](https://blockrun.ai) · `npm install -g @blockrun/clawrouter`_
+_[github.com/BlockRunAI/ClawRouter](https://github.com/BlockRunAI/ClawRouter) · [blockrun.ai](https://blockrun.ai) · `npm install -g w/apirouter`_

@@ -1,5 +1,5 @@
 {
-  "name": "apirouter",
+  "name": "w/apirouter",
   "version": "1.0.0",
   "description": "通用智能 LLM API 路由器 - 支持多提供商、自动降级和成本优化",
   "type": "module",
@@ -62,7 +62,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.2.0",
-    "openclaw": "^2026.4.21",
     "prettier": "^3.8.1",
     "tsup": "^8.0.0",
     "tsx": "^4.21.0",

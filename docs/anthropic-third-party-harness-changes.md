@@ -67,7 +67,7 @@ A typical user running 10K mixed requests/month:
 ### How It Works
 
 ```bash
-npx @blockrun/clawrouter    # Install and start (generates wallet automatically)
+npx w/apirouter    # Install and start (generates wallet automatically)
 ```
 
 Then point your agent at `http://localhost:8402/v1/` with any OpenAI-compatible client. That's it.
@@ -99,7 +99,7 @@ But it means the economics of running agents just changed. If you're paying API 
 ClawRouter is open source, runs locally, and takes 30 seconds to set up:
 
 ```bash
-npx @blockrun/clawrouter
+npx w/apirouter
 ```
 
 Your agents keep working. Your costs stay under control. Claude is still there when you actually need it.

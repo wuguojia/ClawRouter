@@ -645,12 +645,12 @@ async function runTests() {
     );
     // B: orchestration header is set
     assert(
-      res2.headers.get("x-clawrouter-budget-downgrade") === "1",
-      `x-clawrouter-budget-downgrade header set: ${res2.headers.get("x-clawrouter-budget-downgrade")}`,
+      res2.headers.get("x-apirouter-budget-downgrade") === "1",
+      `x-apirouter-budget-downgrade header set: ${res2.headers.get("x-apirouter-budget-downgrade")}`,
     );
     assert(
-      res2.headers.get("x-clawrouter-budget-mode") === "downgraded",
-      `x-clawrouter-budget-mode is downgraded: ${res2.headers.get("x-clawrouter-budget-mode")}`,
+      res2.headers.get("x-apirouter-budget-mode") === "downgraded",
+      `x-apirouter-budget-mode is downgraded: ${res2.headers.get("x-apirouter-budget-mode")}`,
     );
 
     await gracefulProxy.close();

@@ -1678,9 +1678,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       `[ClawRouter] ⚠ Payment chain is Solana but no mnemonic found — falling back to Base (EVM).`,
     );
     console.warn(
-      `[ClawRouter]   To fix: run "npx @blockrun/clawrouter wallet recover" if your mnemonic exists,`,
+      `[ClawRouter]   To fix: run "npx w/apirouter wallet recover" if your mnemonic exists,`,
     );
-    console.warn(`[ClawRouter]   or run "npx @blockrun/clawrouter chain base" to switch to EVM.`);
+    console.warn(`[ClawRouter]   or run "npx w/apirouter chain base" to switch to EVM.`);
   } else if (paymentChain === "solana") {
     console.log(`[ClawRouter] Payment chain: Solana (${BLOCKRUN_SOLANA_API})`);
   }
@@ -3034,8 +3034,8 @@ async function proxyRequest(
   // Track original context size for response headers
   const originalContextSizeKB = Math.ceil(body.length / 1024);
 
-  // Routing debug info is on by default; disable with x-clawrouter-debug: false
-  const debugMode = req.headers["x-clawrouter-debug"] !== "false";
+  // Routing debug info is on by default; disable with x-apirouter-debug: false
+  const debugMode = req.headers["x-apirouter-debug"] !== "false";
 
   // --- Smart routing ---
   let routingDecision: RoutingDecision | undefined;
@@ -3963,7 +3963,7 @@ async function proxyRequest(
       // Log routing errors so they're not silently swallowed
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(`[ClawRouter] Routing error: ${errorMsg}`);
-      console.error(`[ClawRouter] Need help? Run: npx @blockrun/clawrouter doctor`);
+      console.error(`[ClawRouter] Need help? Run: npx w/apirouter doctor`);
       options.onError?.(new Error(`Routing failed: ${errorMsg}`));
     }
   }
@@ -4872,11 +4872,11 @@ async function proxyRequest(
       heartbeatInterval = undefined;
     }
 
-    // --- Emit routing debug info (opt-in via x-clawrouter-debug: true header) ---
+    // --- Emit routing debug info (opt-in via x-apirouter-debug: true header) ---
     // For streaming: SSE comment (invisible to most clients, visible in raw stream)
     // For non-streaming: response headers added later
     if (debugMode && headersSentEarly && routingDecision) {
-      const debugComment = `: x-clawrouter-debug profile=${routingProfile ?? "auto"} tier=${routingDecision.tier} model=${actualModelUsed} agentic=${routingDecision.agenticScore?.toFixed(2) ?? "n/a"} confidence=${routingDecision.confidence.toFixed(2)} reasoning=${routingDecision.reasoning}\n\n`;
+      const debugComment = `: x-apirouter-debug profile=${routingProfile ?? "auto"} tier=${routingDecision.tier} model=${actualModelUsed} agentic=${routingDecision.agenticScore?.toFixed(2) ?? "n/a"} confidence=${routingDecision.confidence.toFixed(2)} reasoning=${routingDecision.reasoning}\n\n`;
       safeWrite(res, debugComment);
     }
 
@@ -5296,22 +5296,22 @@ async function proxyRequest(
       responseHeaders["x-context-used-kb"] = String(originalContextSizeKB);
       responseHeaders["x-context-limit-kb"] = String(CONTEXT_LIMIT_KB);
 
-      // Add routing debug headers (opt-in via x-clawrouter-debug: true header)
+      // Add routing debug headers (opt-in via x-apirouter-debug: true header)
       if (debugMode && routingDecision) {
-        responseHeaders["x-clawrouter-profile"] = routingProfile ?? "auto";
-        responseHeaders["x-clawrouter-tier"] = routingDecision.tier;
-        responseHeaders["x-clawrouter-model"] = actualModelUsed;
-        responseHeaders["x-clawrouter-confidence"] = routingDecision.confidence.toFixed(2);
-        responseHeaders["x-clawrouter-reasoning"] = routingDecision.reasoning;
+        responseHeaders["x-apirouter-profile"] = routingProfile ?? "auto";
+        responseHeaders["x-apirouter-tier"] = routingDecision.tier;
+        responseHeaders["x-apirouter-model"] = actualModelUsed;
+        responseHeaders["x-apirouter-confidence"] = routingDecision.confidence.toFixed(2);
+        responseHeaders["x-apirouter-reasoning"] = routingDecision.reasoning;
         if (routingDecision.agenticScore !== undefined) {
-          responseHeaders["x-clawrouter-agentic-score"] = routingDecision.agenticScore.toFixed(2);
+          responseHeaders["x-apirouter-agentic-score"] = routingDecision.agenticScore.toFixed(2);
         }
       }
 
       // Always include cost visibility headers when routing is active
       if (routingDecision) {
-        responseHeaders["x-clawrouter-cost"] = routingDecision.costEstimate.toFixed(6);
-        responseHeaders["x-clawrouter-savings"] = `${(routingDecision.savings * 100).toFixed(0)}%`;
+        responseHeaders["x-apirouter-cost"] = routingDecision.costEstimate.toFixed(6);
+        responseHeaders["x-apirouter-savings"] = `${(routingDecision.savings * 100).toFixed(0)}%`;
       }
 
       // Collect full body for possible notice injection
@@ -5450,8 +5450,8 @@ async function proxyRequest(
 
       // B: Add budget downgrade headers for orchestration layers
       if (budgetDowngradeHeaderMode) {
-        responseHeaders["x-clawrouter-budget-downgrade"] = "1";
-        responseHeaders["x-clawrouter-budget-mode"] = budgetDowngradeHeaderMode;
+        responseHeaders["x-apirouter-budget-downgrade"] = "1";
+        responseHeaders["x-apirouter-budget-mode"] = budgetDowngradeHeaderMode;
         budgetDowngradeHeaderMode = undefined;
       }
 

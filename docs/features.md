@@ -84,7 +84,7 @@ Response:
 Response caching is enabled by default with sensible defaults. For advanced tuning, the cache can be configured programmatically:
 
 ```typescript
-import { ResponseCache } from "@blockrun/clawrouter";
+import { ResponseCache } from "w/apirouter";
 
 const cache = new ResponseCache({
   maxSize: 500, // Max cached responses
@@ -128,7 +128,7 @@ You can also force agentic mode via config:
 ```yaml
 # openclaw.yaml
 plugins:
-  - id: "@blockrun/clawrouter"
+  - id: "w/apirouter"
     config:
       routing:
         overrides:
