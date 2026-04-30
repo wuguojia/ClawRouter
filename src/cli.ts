@@ -15,7 +15,7 @@
 
 import { startProxy, getProxyPort } from "./proxy.js";
 import { VERSION } from "./version.js";
-import { getApiKey } from "./auth.js";
+import { getApiKey, getConfiguredProviders } from "./auth.js";
 import { generateReport } from "./report.js";
 import { formatRecentLogs } from "./stats.js";
 import { runDoctor } from "./doctor.js";
@@ -52,8 +52,19 @@ Management Commands:
   logs --days 7     Show last 7 days of requests (default: 1 day)
 
 Environment Variables:
-  BLOCKRUN_API_KEY        API key for authentication
-  BLOCKRUN_PROXY_PORT     Default proxy port (default: 8402)
+  Provider-specific API keys (recommended):
+    OPENAI_API_KEY          OpenAI API key
+    ANTHROPIC_API_KEY       Anthropic API key
+    GOOGLE_API_KEY          Google/Gemini API key
+    XAI_API_KEY             xAI (Grok) API key
+    DEEPSEEK_API_KEY        DeepSeek API key
+    MOONSHOT_API_KEY        Moonshot (Kimi) API key
+
+  Or unified proxy (alternative):
+    BLOCKRUN_API_KEY        BlockRun unified API key (fallback)
+
+  Other:
+    BLOCKRUN_PROXY_PORT     Default proxy port (default: 8402)
 
 For more info: https://blockrun.ai/clawrouter.md
 `);
@@ -71,7 +82,15 @@ async function cmdStatus(port: number): Promise<void> {
     const data = (await queryProxy("/health?full=true", port)) as Record<string, unknown>;
     console.log(`\nClawRouter Status (port ${port})\n`);
     console.log(`  Status:   ${data.status}`);
-    console.log(`  API Key:  ${getApiKey() ? 'configured' : 'not configured'}`);
+
+    // Show configured providers
+    const configured = getConfiguredProviders();
+    if (configured.size > 0) {
+      console.log(`  Providers: ${Array.from(configured.keys()).join(', ')}`);
+    } else {
+      console.log(`  Providers: none configured`);
+    }
+
     if (data.upstreamProxy) console.log(`  Upstream Proxy: ${data.upstreamProxy}`);
     console.log();
   } catch {
@@ -310,17 +329,18 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Check for API key
-  const apiKey = getApiKey();
-  if (apiKey) {
-    console.log(`[ClawRouter] API Key: configured`);
+  // Check for configured providers
+  const configured = getConfiguredProviders();
+  if (configured.size > 0) {
+    console.log(`[ClawRouter] Configured providers: ${Array.from(configured.keys()).join(', ')}`);
   } else {
-    console.log(`[ClawRouter] API Key: not configured (set BLOCKRUN_API_KEY)`);
+    console.log(`[ClawRouter] No API keys configured.`);
+    console.log(`[ClawRouter] Set provider-specific keys (e.g., OPENAI_API_KEY) or BLOCKRUN_API_KEY`);
   }
 
   // Start the proxy
   const proxy = await startProxy({
-    apiKey,
+    apiKey: getApiKey(),
     port: args.port,
     onReady: (port) => {
       console.log(`[ClawRouter] v${VERSION} | Proxy listening on http://127.0.0.1:${port}`);

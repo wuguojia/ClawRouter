@@ -39,7 +39,7 @@ Every other LLM router was built for **human developers** — create an account,
 ClawRouter simplifies this with:
 
 - **Smart routing** — 15-dimension scoring picks the right model automatically
-- **API key auth** — simple authentication via BLOCKRUN_API_KEY environment variable
+- **Multi-provider API keys** — supports provider-specific keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.) or unified BlockRun proxy
 - **Cost optimization** — routes to the cheapest capable model
 - **Local execution** — runs locally, <1ms routing, zero external dependencies
 - **No trust required** — open source, self-hosted, no data sent to third parties
@@ -69,7 +69,19 @@ ClawRouter simplifies this with:
 
 ClawRouter runs as a local proxy on port 8402 and works with any OpenAI-compatible client.
 
-**1. Set your API key**
+**1. Set your API keys**
+
+You can use provider-specific API keys (recommended):
+
+```bash
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+export GOOGLE_API_KEY=...
+export XAI_API_KEY=...
+export DEEPSEEK_API_KEY=...
+```
+
+Or use BlockRun unified proxy (alternative):
 
 ```bash
 export BLOCKRUN_API_KEY=your-api-key-here
