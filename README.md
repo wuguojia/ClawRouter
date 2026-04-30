@@ -5,17 +5,16 @@
 <h1>The LLM router built for autonomous agents</h1>
 
 <p>Agents can't sign up for accounts. Agents can't enter credit cards.<br>
-Agents can only sign transactions.<br><br>
-<strong>ClawRouter is the only LLM router that lets agents operate independently.</strong><br><br>
-<em>8 models free, no crypto required. No signup. No API key. No credit card.</em></p>
+Agents need simple, API-key based access.<br><br>
+<strong>ClawRouter provides smart LLM routing with API key authentication.</strong><br><br>
+<em>Simple API key auth. Smart routing. Cost optimization.</em></p>
 
 <br>
 
 <img src="https://img.shields.io/badge/🆓_8_Free_Models-success?style=for-the-badge" alt="8 free models">&nbsp;
 <img src="https://img.shields.io/badge/🤖_Agent--Native-black?style=for-the-badge" alt="Agent native">&nbsp;
-<img src="https://img.shields.io/badge/🔑_Zero_API_Keys-blue?style=for-the-badge" alt="No API keys">&nbsp;
+<img src="https://img.shields.io/badge/🔑_API_Key_Auth-blue?style=for-the-badge" alt="API Key Auth">&nbsp;
 <img src="https://img.shields.io/badge/⚡_Local_Routing-yellow?style=for-the-badge" alt="Local routing">&nbsp;
-<img src="https://img.shields.io/badge/💰_x402_USDC-purple?style=for-the-badge" alt="x402 USDC">&nbsp;
 <img src="https://img.shields.io/badge/🔓_Open_Source-green?style=for-the-badge" alt="Open source">
 
 [![npm version](https://img.shields.io/npm/v/@blockrun/clawrouter.svg?style=flat-square&color=cb3837)](https://npmjs.com/package/@blockrun/clawrouter)
@@ -25,15 +24,11 @@ Agents can only sign transactions.<br><br>
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[![USDC Hackathon Winner](https://img.shields.io/badge/🏆_USDC_Hackathon-Agentic_Commerce_Winner-gold?style=flat-square)](https://x.com/USDC/status/2021625822294216977)
-[![x402 Protocol](https://img.shields.io/badge/x402-Micropayments-purple?style=flat-square)](https://x402.org)
-[![Base Network](https://img.shields.io/badge/Base-USDC-0052FF?style=flat-square&logo=coinbase&logoColor=white)](https://base.org)
-[![Solana](https://img.shields.io/badge/Solana-USDC-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com)
 [![Telegram](https://img.shields.io/badge/Telegram-Community-26A5E4?style=flat-square&logo=telegram)](https://t.me/blockrunAI)
 
 </div>
 
-> **ClawRouter** is an open-source smart LLM router that reduces AI API costs by up to 92%. It analyzes each request across 15 dimensions and routes to the cheapest capable model in under 1ms, entirely locally. ClawRouter is the only LLM router built for autonomous AI agents — it uses wallet signatures for authentication (no API keys) and USDC micropayments via the x402 protocol (no credit cards). 55+ models from OpenAI, Anthropic, Google, xAI, DeepSeek, and more. MIT licensed.
+> **ClawRouter** is an open-source smart LLM router that reduces AI API costs by up to 92%. It analyzes each request across 15 dimensions and routes to the cheapest capable model in under 1ms, entirely locally. Simple API key authentication. 55+ models from OpenAI, Anthropic, Google, xAI, DeepSeek, and more. MIT licensed.
 
 ---
 
@@ -41,18 +36,13 @@ Agents can only sign transactions.<br><br>
 
 Every other LLM router was built for **human developers** — create an account, get an API key, pick a model from a dashboard, pay with a credit card.
 
-**Agents can't do any of that.**
+ClawRouter simplifies this with:
 
-ClawRouter is built for the agent-first world:
-
-- **Starts at $0** — 8 NVIDIA models are free forever, no balance needed to start
-- **No accounts** — a wallet is generated locally, no signup
-- **No API keys** — your wallet signature IS authentication
-- **No model selection** — 15-dimension scoring picks the right model automatically
-- **No credit cards** — agents pay per-request with USDC via [x402](https://x402.org)
-- **No trust required** — runs locally, <1ms routing, zero external dependencies
-
-This is the stack that lets agents operate autonomously: **x402 + USDC + local routing**.
+- **Smart routing** — 15-dimension scoring picks the right model automatically
+- **API key auth** — simple authentication via BLOCKRUN_API_KEY environment variable
+- **Cost optimization** — routes to the cheapest capable model
+- **Local execution** — runs locally, <1ms routing, zero external dependencies
+- **No trust required** — open source, self-hosted, no data sent to third parties
 
 ---
 
@@ -63,8 +53,8 @@ This is the stack that lets agents operate autonomously: **x402 + USDC + local r
 | **Models**       | 200+              | 100+             | Smart routing     | Gateway           | **55+**                 |
 | **Free tier**    | Rate-limited      | BYO keys         | No                | No                | **8 models, no signup** |
 | **Routing**      | Manual selection  | Manual selection | Smart (closed)    | Observability     | **Smart (open source)** |
-| **Auth**         | Account + API key | Your API keys    | Account + API key | Account + API key | **Wallet signature**    |
-| **Payment**      | Credit card       | BYO keys         | Credit card       | $49-499/mo        | **USDC per-request**    |
+| **Auth**         | Account + API key | Your API keys    | Account + API key | Account + API key | **Simple API key**      |
+| **Payment**      | Credit card       | BYO keys         | Credit card       | $49-499/mo        | **Pay-as-you-go**       |
 | **Runs locally** | No                | Yes              | No                | No                | **Yes**                 |
 | **Open source**  | No                | Yes              | No                | Partial           | **Yes**                 |
 | **Agent-ready**  | No                | No               | No                | No                | **Yes**                 |
@@ -77,18 +67,19 @@ This is the stack that lets agents operate autonomously: **x402 + USDC + local r
 
 ## Quick Start
 
-> **No wallet? 8 models work free out of the box.** Install, run, and pin `nvidia/gpt-oss-120b` — no crypto, no signup, no balance required. Add USDC later when you want paid models.
-
 ClawRouter runs as a local proxy on port 8402 and works with any OpenAI-compatible client.
 
-**1. Start the proxy**
+**1. Set your API key**
+
+```bash
+export BLOCKRUN_API_KEY=your-api-key-here
+```
+
+**2. Start the proxy**
 
 ```bash
 npx @blockrun/clawrouter
 ```
-
-**2. Fund your wallet** — optional, skip for free tier
-Your wallet address is printed on first run. For paid models, send a few USDC on Base or Solana — $5 covers thousands of requests. To stay at $0, pin any of the 8 free models (e.g. `nvidia/gpt-oss-120b`).
 
 **3. Point your client at `http://localhost:8402`**
 
@@ -103,7 +94,7 @@ models:
     provider: openai
     model: blockrun/auto
     apiBase: http://localhost:8402/v1/
-    apiKey: x402
+    apiKey: your-api-key-here
     roles:
       - chat
       - edit
@@ -125,7 +116,7 @@ Both `provider: openai` and `provider: clawrouter` work — just make sure `apiB
       "provider": "openai",
       "model": "blockrun/auto",
       "apiBase": "http://localhost:8402/v1/",
-      "apiKey": "x402"
+      "apiKey": "your-api-key-here"
     }
   ]
 }
@@ -137,7 +128,7 @@ Both `provider: openai` and `provider: clawrouter` work — just make sure `apiB
 <details>
 <summary><strong>Cursor</strong> — Settings → Models → OpenAI-compatible</summary>
 
-Set base URL to `http://localhost:8402`, API key to `x402`, model to `blockrun/auto`.
+Set base URL to `http://localhost:8402`, API key to your BlockRun API key, model to `blockrun/auto`.
 
 </details>
 
@@ -146,7 +137,7 @@ Set base URL to `http://localhost:8402`, API key to `x402`, model to `blockrun/a
 
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="http://localhost:8402", api_key="x402")
+client = OpenAI(base_url="http://localhost:8402", api_key="your-api-key-here")
 response = client.chat.completions.create(model="blockrun/auto", messages=[...])
 ```
 
