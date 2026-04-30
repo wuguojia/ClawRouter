@@ -1,9 +1,14 @@
 /**
  * Multi-Provider API Key Authentication
  *
- * Supports provider-specific API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
- * with fallback to BLOCKRUN_API_KEY for unified proxy access.
+ * Three-tier configuration priority:
+ * 1. Configuration file (~/.clawrouter/providers.json)
+ * 2. Environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+ * 3. Unified proxy (BLOCKRUN_API_KEY)
  */
+
+import { loadProviders } from "./config/loader.js";
+import type { ProviderConfig } from "./config/types.js";
 
 /**
  * Provider-specific API key environment variables
@@ -28,17 +33,45 @@ export const PROVIDER_API_KEY_ENV: Record<string, string> = {
 const BLOCKRUN_API_KEY_ENV = "BLOCKRUN_API_KEY";
 
 /**
- * Get API key for a specific provider.
- * Priority: provider-specific key > BLOCKRUN_API_KEY > undefined
+ * Get provider configuration by ID from config file.
  *
- * @param provider - Provider name (e.g., "openai", "anthropic")
+ * @param providerId - Provider ID (e.g., "openai-official", "azure-openai")
+ * @returns ProviderConfig if found, undefined otherwise
+ */
+export function getProviderConfig(providerId: string): ProviderConfig | undefined {
+  const providers = loadProviders();
+  return providers.find(p => p.id === providerId && p.enabled !== false);
+}
+
+/**
+ * Get all provider configurations from config file.
+ *
+ * @returns Array of enabled ProviderConfig
+ */
+export function getAllProviderConfigs(): ProviderConfig[] {
+  const providers = loadProviders();
+  return providers.filter(p => p.enabled !== false);
+}
+
+/**
+ * Get API key for a specific provider.
+ * Priority:
+ * 1. Configuration file (by provider ID)
+ * 2. Environment variable (by provider format/name)
+ * 3. BLOCKRUN_API_KEY (unified fallback)
+ *
+ * @param provider - Provider ID or format name (e.g., "openai-official", "openai", "anthropic")
  * @returns API key if found, undefined otherwise
  */
 export function getProviderApiKey(provider: string): string | undefined {
-  // Normalize provider name to lowercase
-  const normalizedProvider = provider.toLowerCase();
+  // 1. Try config file first (by provider ID)
+  const providerConfig = getProviderConfig(provider);
+  if (providerConfig?.apiKey) {
+    return providerConfig.apiKey;
+  }
 
-  // Try provider-specific key first
+  // 2. Try environment variable (by format/name)
+  const normalizedProvider = provider.toLowerCase();
   const providerEnvVar = PROVIDER_API_KEY_ENV[normalizedProvider];
   if (providerEnvVar) {
     const key = process.env[providerEnvVar];
@@ -47,7 +80,7 @@ export function getProviderApiKey(provider: string): string | undefined {
     }
   }
 
-  // Fallback to unified BlockRun API key
+  // 3. Fallback to unified BlockRun API key
   return process.env[BLOCKRUN_API_KEY_ENV];
 }
 
@@ -63,7 +96,7 @@ export function getApiKey(): string | undefined {
  * Validate that an API key is configured for a provider.
  * Throws an error if not found.
  *
- * @param provider - Provider name
+ * @param provider - Provider ID or format name
  * @returns API key
  */
 export function requireProviderApiKey(provider: string): string {
@@ -72,8 +105,8 @@ export function requireProviderApiKey(provider: string): string {
     const normalizedProvider = provider.toLowerCase();
     const providerEnvVar = PROVIDER_API_KEY_ENV[normalizedProvider];
     const suggestion = providerEnvVar
-      ? `Set ${providerEnvVar} or ${BLOCKRUN_API_KEY_ENV} environment variable.`
-      : `Set ${BLOCKRUN_API_KEY_ENV} environment variable.`;
+      ? `Set ${providerEnvVar} or ${BLOCKRUN_API_KEY_ENV} environment variable, or add provider to ~/.clawrouter/providers.json`
+      : `Set ${BLOCKRUN_API_KEY_ENV} environment variable or add provider to ~/.clawrouter/providers.json`;
     throw new Error(
       `API key not found for provider "${provider}". ${suggestion}`
     );
@@ -96,25 +129,52 @@ export function requireApiKey(): string {
 }
 
 /**
- * Get all configured provider API keys
- * @returns Map of provider names to their API keys
+ * Get all configured providers (from both config file and environment variables).
+ * Returns full ProviderConfig objects for config file providers,
+ * and simplified configs for environment variable providers.
+ *
+ * @returns Array of ProviderConfig
  */
-export function getConfiguredProviders(): Map<string, string> {
-  const configured = new Map<string, string>();
+export function getConfiguredProviders(): ProviderConfig[] {
+  const providers: ProviderConfig[] = [];
 
-  // Check all provider-specific keys
+  // 1. Load providers from config file
+  const fileProviders = getAllProviderConfigs();
+  providers.push(...fileProviders);
+
+  // 2. Add environment variable providers (if not already in config file)
+  const configProviderIds = new Set(providers.map(p => p.id));
+  const configProviderFormats = new Set(providers.map(p => p.format));
+
   for (const [provider, envVar] of Object.entries(PROVIDER_API_KEY_ENV)) {
     const key = process.env[envVar];
-    if (key) {
-      configured.set(provider, key);
+    if (key && !configProviderIds.has(provider) && !configProviderFormats.has(provider as any)) {
+      // Create a simplified provider config from environment variable
+      providers.push({
+        id: provider,
+        name: provider.charAt(0).toUpperCase() + provider.slice(1),
+        format: provider as any, // Assume format matches provider name
+        baseUrl: "", // Will need to be set by user or inferred
+        apiKey: key,
+        models: [],
+        enabled: true,
+      });
     }
   }
 
-  // Add BlockRun unified key if present
+  // 3. Add BlockRun unified key if present and no other providers configured
   const blockrunKey = process.env[BLOCKRUN_API_KEY_ENV];
-  if (blockrunKey) {
-    configured.set("blockrun", blockrunKey);
+  if (blockrunKey && providers.length === 0) {
+    providers.push({
+      id: "blockrun",
+      name: "BlockRun Unified",
+      format: "openai",
+      baseUrl: "",
+      apiKey: blockrunKey,
+      models: [],
+      enabled: true,
+    });
   }
 
-  return configured;
+  return providers;
 }

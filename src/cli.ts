@@ -85,8 +85,8 @@ async function cmdStatus(port: number): Promise<void> {
 
     // Show configured providers
     const configured = getConfiguredProviders();
-    if (configured.size > 0) {
-      console.log(`  Providers: ${Array.from(configured.keys()).join(', ')}`);
+    if (configured.length > 0) {
+      console.log(`  Providers: ${configured.map(p => `${p.name} (${p.format})`).join(', ')}`);
     } else {
       console.log(`  Providers: none configured`);
     }
@@ -331,8 +331,8 @@ async function main(): Promise<void> {
 
   // Check for configured providers
   const configured = getConfiguredProviders();
-  if (configured.size > 0) {
-    console.log(`[ClawRouter] Configured providers: ${Array.from(configured.keys()).join(', ')}`);
+  if (configured.length > 0) {
+    console.log(`[ClawRouter] Configured providers: ${configured.map(p => `${p.name} (${p.format})`).join(', ')}`);
   } else {
     console.log(`[ClawRouter] No API keys configured.`);
     console.log(`[ClawRouter] Set provider-specific keys (e.g., OPENAI_API_KEY) or BLOCKRUN_API_KEY`);

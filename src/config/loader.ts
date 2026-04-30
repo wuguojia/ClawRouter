@@ -11,7 +11,7 @@ import { DEFAULT_ROUTER_CONFIG } from "./types.js";
 /**
  * 配置文件目录
  */
-export const CONFIG_DIR = join(homedir(), ".apirouter");
+export const CONFIG_DIR = join(homedir(), ".clawrouter");
 
 /**
  * 配置文件路径
