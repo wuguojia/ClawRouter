@@ -71,7 +71,11 @@ ClawRouter runs as a local proxy on port 8402 and works with any OpenAI-compatib
 
 **1. Set your API keys**
 
-You can use provider-specific API keys (recommended):
+Choose one of two authentication methods:
+
+**Method A: Provider-specific API keys** (recommended for multiple providers of same format)
+
+You can set environment variables:
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -81,11 +85,59 @@ export XAI_API_KEY=...
 export DEEPSEEK_API_KEY=...
 ```
 
-Or use BlockRun unified proxy (alternative):
+Or use a configuration file for multiple providers per format (e.g., OpenAI official + Azure OpenAI + Together.xyz):
+
+```bash
+# Add a provider interactively
+npx @blockrun/clawrouter provider add
+
+# Or manually edit ~/.clawrouter/providers.json
+```
+
+Example `~/.clawrouter/providers.json`:
+
+```json
+[
+  {
+    "id": "openai-official",
+    "name": "OpenAI Official",
+    "format": "openai",
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk-...",
+    "models": [],
+    "enabled": true
+  },
+  {
+    "id": "azure-openai",
+    "name": "Azure OpenAI",
+    "format": "openai",
+    "baseUrl": "https://your-resource.openai.azure.com/v1",
+    "apiKey": "your-azure-key",
+    "models": [],
+    "enabled": true
+  },
+  {
+    "id": "together-xyz",
+    "name": "Together.xyz",
+    "format": "openai",
+    "baseUrl": "https://api.together.xyz/v1",
+    "apiKey": "your-together-key",
+    "models": [],
+    "enabled": true
+  }
+]
+```
+
+**Method B: BlockRun unified proxy** (alternative, single key for all providers)
 
 ```bash
 export BLOCKRUN_API_KEY=your-api-key-here
 ```
+
+**Configuration Priority:**
+1. Configuration file (`~/.clawrouter/providers.json`) - highest priority
+2. Environment variables (provider-specific keys)
+3. Unified proxy (BLOCKRUN_API_KEY) - fallback
 
 **2. Start the proxy**
 
@@ -337,39 +389,35 @@ Edit existing images with `/img2img`:
 
 ---
 
-## Payment
+## CLI Commands
 
-No account. No API key. **Payment IS authentication** via [x402](https://x402.org).
-
-```
-Request → 402 (price: $0.003) → wallet signs USDC → retry → response
-```
-
-USDC stays in your wallet until spent — non-custodial. Price is visible in the 402 header before signing.
-
-**Dual-chain support:** Pay with **USDC** on **Base (EVM)** or **USDC on Solana**. Both wallets are derived from a single BIP-39 mnemonic on first run.
+Manage providers and check system status:
 
 ```bash
-/wallet              # Check balance and address (both chains)
-/wallet export       # Export mnemonic + keys for backup
-/wallet recover      # Restore wallet from mnemonic on a new machine
-/wallet solana       # Switch to Solana USDC payments
-/wallet base         # Switch back to Base (EVM) USDC payments
-/chain solana        # Alias for /wallet solana
-/stats               # View usage and savings
-/stats clear         # Reset usage statistics
-/exclude             # Show excluded models
-/exclude add <model> # Block a model from routing (aliases work: "grok-4", "free")
-/exclude remove <model> # Unblock a model
-/exclude clear       # Remove all exclusions
+# List all configured providers
+npx @blockrun/clawrouter providers
+
+# Add a new provider interactively
+npx @blockrun/clawrouter provider add
+
+# Check proxy status
+npx @blockrun/clawrouter status
+
+# List available models
+npx @blockrun/clawrouter models
+
+# View usage statistics
+npx @blockrun/clawrouter stats
+npx @blockrun/clawrouter stats --days 14
+
+# View detailed logs
+npx @blockrun/clawrouter logs
+npx @blockrun/clawrouter logs --days 7
+
+# Run diagnostics
+npx @blockrun/clawrouter doctor
+npx @blockrun/clawrouter doctor opus "Why is my request slow?"
 ```
-
-**Fund your wallet:**
-
-- **Base (EVM):** Send USDC on Base to your EVM address
-- **Solana:** Send USDC on Solana to your Solana address
-- **Coinbase/CEX:** Withdraw USDC to either network
-- **Credit card:** Reach out to [@bc1max on Telegram](https://t.me/bc1max)
 
 ---
 

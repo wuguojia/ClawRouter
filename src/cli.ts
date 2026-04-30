@@ -15,10 +15,13 @@
 
 import { startProxy, getProxyPort } from "./proxy.js";
 import { VERSION } from "./version.js";
-import { getApiKey, getConfiguredProviders } from "./auth.js";
+import { getApiKey, getConfiguredProviders, getAllProviderConfigs } from "./auth.js";
 import { generateReport } from "./report.js";
 import { formatRecentLogs } from "./stats.js";
 import { runDoctor } from "./doctor.js";
+import { loadProviders, saveProviders, CONFIG_DIR } from "./config/loader.js";
+import type { ProviderConfig } from "./config/types.js";
+import * as readline from "node:readline/promises";
 
 function printHelp(): void {
   console.log(`
@@ -32,6 +35,8 @@ Usage:
   clawrouter doctor [opus] [question]
   clawrouter report [daily|weekly|monthly] [--json]
   clawrouter logs [--days <n>]
+  clawrouter providers                 # List configured providers
+  clawrouter provider add             # Add a new provider
 
 Options:
   --version, -v     Show version number
@@ -50,6 +55,8 @@ Management Commands:
   doctor opus       Use Opus for deeper analysis (~$0.01)
   logs              Per-request breakdown: model, cost, latency, status
   logs --days 7     Show last 7 days of requests (default: 1 day)
+  providers         List all configured providers (config file + env vars)
+  provider add      Interactive provider setup wizard
 
 Environment Variables:
   Provider-specific API keys (recommended):
@@ -62,6 +69,9 @@ Environment Variables:
 
   Or unified proxy (alternative):
     BLOCKRUN_API_KEY        BlockRun unified API key (fallback)
+
+  Configuration file (supports multiple providers per format):
+    ~/.clawrouter/providers.json
 
   Other:
     BLOCKRUN_PROXY_PORT     Default proxy port (default: 8402)
@@ -178,6 +188,115 @@ async function cmdCache(port: number): Promise<void> {
   }
 }
 
+async function cmdProviders(): Promise<void> {
+  const providers = getConfiguredProviders();
+
+  console.log(`\nConfigured Providers\n`);
+  console.log(`Config Directory: ${CONFIG_DIR}`);
+  console.log();
+
+  if (providers.length === 0) {
+    console.log(`  No providers configured.`);
+    console.log();
+    console.log(`  Set environment variables (e.g., OPENAI_API_KEY) or`);
+    console.log(`  add providers to ${CONFIG_DIR}/providers.json`);
+    console.log();
+    return;
+  }
+
+  const fileProviders = getAllProviderConfigs();
+  const fileProviderIds = new Set(fileProviders.map(p => p.id));
+
+  for (const provider of providers) {
+    const source = fileProviderIds.has(provider.id) ? "config file" : "environment";
+    console.log(`  ${provider.name} (${provider.id})`);
+    console.log(`    Format:  ${provider.format}`);
+    console.log(`    Base URL: ${provider.baseUrl || "(not set)"}`);
+    console.log(`    API Key: ${provider.apiKey ? "***" + provider.apiKey.slice(-4) : "(not set)"}`);
+    console.log(`    Source:  ${source}`);
+    console.log(`    Enabled: ${provider.enabled !== false}`);
+    console.log();
+  }
+}
+
+async function cmdProviderAdd(): Promise<void> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    console.log(`\nAdd New Provider\n`);
+
+    const id = await rl.question("Provider ID (e.g., openai-official, azure-openai): ");
+    if (!id.trim()) {
+      console.log("Provider ID cannot be empty.");
+      return;
+    }
+
+    // Check for duplicate ID
+    const existing = loadProviders();
+    if (existing.find(p => p.id === id)) {
+      console.log(`Provider with ID "${id}" already exists.`);
+      return;
+    }
+
+    const name = await rl.question("Provider Name (e.g., OpenAI Official): ");
+    if (!name.trim()) {
+      console.log("Provider name cannot be empty.");
+      return;
+    }
+
+    console.log("\nAvailable formats:");
+    console.log("  1. openai    - OpenAI, Azure OpenAI, Together.xyz, etc.");
+    console.log("  2. anthropic - Anthropic Claude");
+    console.log("  3. gemini    - Google Gemini");
+    console.log("  4. custom    - Custom format");
+
+    const formatChoice = await rl.question("Format (1-4): ");
+    const formatMap: Record<string, string> = {
+      "1": "openai",
+      "2": "anthropic",
+      "3": "gemini",
+      "4": "custom",
+    };
+    const format = formatMap[formatChoice] || "openai";
+
+    const baseUrl = await rl.question(`Base URL (e.g., https://api.openai.com/v1): `);
+    if (!baseUrl.trim()) {
+      console.log("Base URL cannot be empty.");
+      return;
+    }
+
+    const apiKey = await rl.question("API Key: ");
+    if (!apiKey.trim()) {
+      console.log("API Key cannot be empty.");
+      return;
+    }
+
+    const newProvider: ProviderConfig = {
+      id: id.trim(),
+      name: name.trim(),
+      format: format as any,
+      baseUrl: baseUrl.trim(),
+      apiKey: apiKey.trim(),
+      models: [],
+      enabled: true,
+    };
+
+    // Save to config file
+    existing.push(newProvider);
+    saveProviders(existing);
+
+    console.log();
+    console.log(`✓ Provider "${name}" added successfully!`);
+    console.log(`  Config saved to: ${CONFIG_DIR}/providers.json`);
+    console.log();
+  } finally {
+    rl.close();
+  }
+}
+
 function parseArgs(args: string[]): {
   version: boolean;
   help: boolean;
@@ -194,6 +313,9 @@ function parseArgs(args: string[]): {
   queryStats: boolean;
   queryStatsDays: number;
   queryCache: boolean;
+  // Provider commands
+  providersList: boolean;
+  providerAdd: boolean;
 } {
   const result = {
     version: false,
@@ -210,6 +332,8 @@ function parseArgs(args: string[]): {
     queryStats: false,
     queryStatsDays: 7,
     queryCache: false,
+    providersList: false,
+    providerAdd: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -255,6 +379,11 @@ function parseArgs(args: string[]): {
     } else if (arg === "--port" && args[i + 1]) {
       result.port = parseInt(args[i + 1], 10);
       i++;
+    } else if (arg === "providers") {
+      result.providersList = true;
+    } else if (arg === "provider" && args[i + 1] === "add") {
+      result.providerAdd = true;
+      i++;
     }
   }
 
@@ -291,6 +420,16 @@ async function main(): Promise<void> {
   }
   if (args.queryCache) {
     await cmdCache(queryPort);
+    process.exit(0);
+  }
+
+  // Provider management commands
+  if (args.providersList) {
+    await cmdProviders();
+    process.exit(0);
+  }
+  if (args.providerAdd) {
+    await cmdProviderAdd();
     process.exit(0);
   }
 
