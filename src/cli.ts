@@ -5,12 +5,12 @@
  * Standalone proxy for deployed setups where the proxy needs to survive gateway restarts.
  *
  * Usage:
- *   npx @blockrun/clawrouter              # Start standalone proxy
- *   npx @blockrun/clawrouter --version    # Show version
- *   npx @blockrun/clawrouter --port 8402  # Custom port
+ *   npx @blockrun/apirouter              # Start standalone proxy
+ *   npx @blockrun/apirouter --version    # Show version
+ *   npx @blockrun/apirouter --port 8402  # Custom port
  *
  * For production deployments, use with PM2:
- *   pm2 start "npx @blockrun/clawrouter" --name clawrouter
+ *   pm2 start "npx @blockrun/apirouter" --name apirouter
  */
 
 import { startProxy, getProxyPort } from "./proxy.js";
@@ -28,15 +28,15 @@ function printHelp(): void {
 ClawRouter v${VERSION} - Smart LLM Router
 
 Usage:
-  clawrouter [options]
-  clawrouter status                    # Live proxy status
-  clawrouter models                    # List available models
-  clawrouter stats [--days <n>]        # Usage stats (default: 7 days)
-  clawrouter doctor [opus] [question]
-  clawrouter report [daily|weekly|monthly] [--json]
-  clawrouter logs [--days <n>]
-  clawrouter providers                 # List configured providers
-  clawrouter provider add             # Add a new provider
+  apirouter [options]
+  apirouter status                    # Live proxy status
+  apirouter models                    # List available models
+  apirouter stats [--days <n>]        # Usage stats (default: 7 days)
+  apirouter doctor [opus] [question]
+  apirouter report [daily|weekly|monthly] [--json]
+  apirouter logs [--days <n>]
+  apirouter providers                 # List configured providers
+  apirouter provider add             # Add a new provider
 
 Options:
   --version, -v     Show version number
@@ -71,12 +71,12 @@ Environment Variables:
     BLOCKRUN_API_KEY        BlockRun unified API key (fallback)
 
   Configuration file (supports multiple providers per format):
-    ~/.clawrouter/providers.json
+    ~/.apirouter/providers.json
 
   Other:
     BLOCKRUN_PROXY_PORT     Default proxy port (default: 8402)
 
-For more info: https://blockrun.ai/clawrouter.md
+For more info: https://blockrun.ai/apirouter.md
 `);
 }
 
@@ -105,7 +105,7 @@ async function cmdStatus(port: number): Promise<void> {
     console.log();
   } catch {
     console.error(`✗ Cannot connect to ClawRouter on port ${port}`);
-    console.error(`  Is the proxy running? Start with: npx @blockrun/clawrouter`);
+    console.error(`  Is the proxy running? Start with: npx @blockrun/apirouter`);
     process.exit(1);
   }
 }
@@ -519,6 +519,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error(`[ClawRouter] Fatal error: ${err.message}`);
-  console.error(`[ClawRouter] Need help? Run: npx @blockrun/clawrouter doctor`);
+  console.error(`[ClawRouter] Need help? Run: npx @blockrun/apirouter doctor`);
   process.exit(1);
 });

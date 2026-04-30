@@ -2,7 +2,7 @@
  * Multi-Provider API Key Authentication
  *
  * Three-tier configuration priority:
- * 1. Configuration file (~/.clawrouter/providers.json)
+ * 1. Configuration file (~/.apirouter/providers.json)
  * 2. Environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
  * 3. Unified proxy (BLOCKRUN_API_KEY)
  */
@@ -105,8 +105,8 @@ export function requireProviderApiKey(provider: string): string {
     const normalizedProvider = provider.toLowerCase();
     const providerEnvVar = PROVIDER_API_KEY_ENV[normalizedProvider];
     const suggestion = providerEnvVar
-      ? `Set ${providerEnvVar} or ${BLOCKRUN_API_KEY_ENV} environment variable, or add provider to ~/.clawrouter/providers.json`
-      : `Set ${BLOCKRUN_API_KEY_ENV} environment variable or add provider to ~/.clawrouter/providers.json`;
+      ? `Set ${providerEnvVar} or ${BLOCKRUN_API_KEY_ENV} environment variable, or add provider to ~/.apirouter/providers.json`
+      : `Set ${BLOCKRUN_API_KEY_ENV} environment variable or add provider to ~/.apirouter/providers.json`;
     throw new Error(
       `API key not found for provider "${provider}". ${suggestion}`
     );

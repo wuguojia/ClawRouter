@@ -5,8 +5,8 @@
  * Supports http://, https://, and socks5:// proxy URLs.
  *
  * Usage:
- *   BLOCKRUN_UPSTREAM_PROXY=socks5://127.0.0.1:1080 clawrouter start
- *   BLOCKRUN_UPSTREAM_PROXY=http://127.0.0.1:8080 clawrouter start
+ *   BLOCKRUN_UPSTREAM_PROXY=socks5://127.0.0.1:1080 apirouter start
+ *   BLOCKRUN_UPSTREAM_PROXY=http://127.0.0.1:8080 apirouter start
  */
 
 /**

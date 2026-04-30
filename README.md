@@ -17,8 +17,8 @@ Agents need simple, API-key based access.<br><br>
 <img src="https://img.shields.io/badge/⚡_Local_Routing-yellow?style=for-the-badge" alt="Local routing">&nbsp;
 <img src="https://img.shields.io/badge/🔓_Open_Source-green?style=for-the-badge" alt="Open source">
 
-[![npm version](https://img.shields.io/npm/v/@blockrun/clawrouter.svg?style=flat-square&color=cb3837)](https://npmjs.com/package/@blockrun/clawrouter)
-[![npm downloads](https://img.shields.io/npm/dm/@blockrun/clawrouter.svg?style=flat-square&color=blue)](https://npmjs.com/package/@blockrun/clawrouter)
+[![npm version](https://img.shields.io/npm/v/@blockrun/apirouter.svg?style=flat-square&color=cb3837)](https://npmjs.com/package/@blockrun/apirouter)
+[![npm downloads](https://img.shields.io/npm/dm/@blockrun/apirouter.svg?style=flat-square&color=blue)](https://npmjs.com/package/@blockrun/apirouter)
 [![GitHub stars](https://img.shields.io/github/stars/BlockRunAI/ClawRouter?style=flat-square&label=GitHub%20stars)](https://github.com/BlockRunAI/ClawRouter)
 [![CI](https://img.shields.io/github/actions/workflow/status/BlockRunAI/ClawRouter/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/BlockRunAI/ClawRouter/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
@@ -89,12 +89,12 @@ Or use a configuration file for multiple providers per format (e.g., OpenAI offi
 
 ```bash
 # Add a provider interactively
-npx @blockrun/clawrouter provider add
+npx @blockrun/apirouter provider add
 
-# Or manually edit ~/.clawrouter/providers.json
+# Or manually edit ~/.apirouter/providers.json
 ```
 
-Example `~/.clawrouter/providers.json`:
+Example `~/.apirouter/providers.json`:
 
 ```json
 [
@@ -135,14 +135,14 @@ export BLOCKRUN_API_KEY=your-api-key-here
 ```
 
 **Configuration Priority:**
-1. Configuration file (`~/.clawrouter/providers.json`) - highest priority
+1. Configuration file (`~/.apirouter/providers.json`) - highest priority
 2. Environment variables (provider-specific keys)
 3. Unified proxy (BLOCKRUN_API_KEY) - fallback
 
 **2. Start the proxy**
 
 ```bash
-npx @blockrun/clawrouter
+npx @blockrun/apirouter
 ```
 
 **3. Point your client at `http://localhost:8402`**
@@ -167,7 +167,7 @@ models:
 
 To pin a specific model, replace `blockrun/auto` with any model from [blockrun.ai/models](https://blockrun.ai/models), e.g. `anthropic/claude-opus-4.6`, `xai/grok-4-0709`.
 
-Both `provider: openai` and `provider: clawrouter` work — just make sure `apiBase` ends with `/v1/`.
+Both `provider: openai` and `provider: apirouter` work — just make sure `apiBase` ends with `/v1/`.
 
 <details>
 <summary>Legacy JSON format (<code>~/.continue/config.json</code>)</summary>
@@ -395,28 +395,28 @@ Manage providers and check system status:
 
 ```bash
 # List all configured providers
-npx @blockrun/clawrouter providers
+npx @blockrun/apirouter providers
 
 # Add a new provider interactively
-npx @blockrun/clawrouter provider add
+npx @blockrun/apirouter provider add
 
 # Check proxy status
-npx @blockrun/clawrouter status
+npx @blockrun/apirouter status
 
 # List available models
-npx @blockrun/clawrouter models
+npx @blockrun/apirouter models
 
 # View usage statistics
-npx @blockrun/clawrouter stats
-npx @blockrun/clawrouter stats --days 14
+npx @blockrun/apirouter stats
+npx @blockrun/apirouter stats --days 14
 
 # View detailed logs
-npx @blockrun/clawrouter logs
-npx @blockrun/clawrouter logs --days 7
+npx @blockrun/apirouter logs
+npx @blockrun/apirouter logs --days 7
 
 # Run diagnostics
-npx @blockrun/clawrouter doctor
-npx @blockrun/clawrouter doctor opus "Why is my request slow?"
+npx @blockrun/apirouter doctor
+npx @blockrun/apirouter doctor opus "Why is my request slow?"
 ```
 
 ---
@@ -473,7 +473,7 @@ Exclusions persist across restarts (stored in local config). If all models in a 
 **When things go wrong, run the doctor:**
 
 ```bash
-npx @blockrun/clawrouter doctor
+npx @blockrun/apirouter doctor
 ```
 
 This collects diagnostics and sends them to Claude Sonnet for AI-powered analysis:
@@ -496,20 +496,20 @@ Network
 📤 Sending to Claude Sonnet 4.6 (~$0.003)...
 
 🤖 AI Analysis:
-The local proxy isn't running. Start it with `npx @blockrun/clawrouter` to fix.
+The local proxy isn't running. Start it with `npx @blockrun/apirouter` to fix.
 ```
 
 **Use Opus for complex issues:**
 
 ```bash
-npx @blockrun/clawrouter doctor opus
+npx @blockrun/apirouter doctor opus
 ```
 
 **Ask a specific question:**
 
 ```bash
-npx @blockrun/clawrouter doctor "why is my request failing?"
-npx @blockrun/clawrouter doctor opus "深度分析我的配置"
+npx @blockrun/apirouter doctor "why is my request failing?"
+npx @blockrun/apirouter doctor opus "深度分析我的配置"
 ```
 
 **Cost:** Sonnet ~$0.003 (default) | Opus ~$0.01
